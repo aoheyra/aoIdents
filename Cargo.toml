@@ -12,8 +12,14 @@ keywords = ["cryptography", "identity", "mesh", "signatures"]
 categories = ["cryptography"]
 
 [dependencies]
+blake3 = "1"
+ed25519-dalek = { version = "2", features = ["zeroize"] }
+hkdf = "0.12"
+rand_core = "0.6"
+sha2 = "0.10"
 # ADR-0001 vetted list: constant-time comparisons and secret zeroization.
 subtle = "2.6"
+x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
 zeroize = "1.8"
 
 [dev-dependencies]

@@ -189,18 +189,24 @@ fn secret_identity_debug_is_redacted_in_collections() {
 
 // --- Properties ----------------------------------------------------------
 
-proptest! {
-    // Regression files need the process CWD, which Miri's isolation
-    // forbids. Keep them natively, skip file IO under Miri - the failing
-    // input is reported either way.
-    #![proptest_config(ProptestConfig {
+fn proptest_config_for_runtime() -> proptest::test_runner::Config {
+    let default = proptest::test_runner::Config::default();
+    // Regression files need the process CWD, which Miri's isolation forbids.
+    // Keep file persistence natively, skip it under Miri.
+    proptest::test_runner::Config {
         failure_persistence: if cfg!(miri) {
             None
         } else {
             Some(Box::new(FileFailurePersistence::default()))
         },
-        ..ProptestConfig::default()
-    })]
+        // Keep Miri CI runtime bounded while still exercising each property.
+        cases: if cfg!(miri) { 8 } else { default.cases },
+        ..default
+    }
+}
+
+proptest! {
+    #![proptest_config(proptest_config_for_runtime())]
 
     #[test]
     fn node_id_from_arbitrary_bytes_roundtrips(bytes in prop::array::uniform16(any::<u8>())) {
