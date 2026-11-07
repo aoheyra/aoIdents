@@ -25,6 +25,7 @@
 #![deny(missing_docs)]
 
 mod identity;
+mod sign;
 mod types;
 
 pub use identity::Identity;

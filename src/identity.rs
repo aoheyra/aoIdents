@@ -119,6 +119,11 @@ impl Identity {
     pub fn suite(&self) -> SuiteId {
         self.suite
     }
+
+    /// The secret half, for signing inside this crate (IDN-04).
+    pub(crate) fn secret(&self) -> &SecretIdentity {
+        &self.secret
+    }
 }
 
 /// HKDF-SHA-256 expand with salt = suite byte, one label per use

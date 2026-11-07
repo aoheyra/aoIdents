@@ -15,6 +15,7 @@ use common::TestRng;
 use ed25519_dalek::{Signature as DalekSignature, VerifyingKey};
 use proptest::prelude::*;
 use proptest::test_runner::FileFailurePersistence;
+use rand_core::RngCore;
 
 /// ADR-0001 bind-agreement domain (registry in `docs/adr/0001`).
 const DOMAIN_BIND_AGREEMENT: &str = "aoheyra/idn/v1/bind-agreement";
@@ -53,6 +54,15 @@ fn binding_verifies(public: &PublicIdentity) -> bool {
     let sig = DalekSignature::from_bytes(public.agreement_binding().as_bytes());
     let msg = preimage(DOMAIN_BIND_AGREEMENT, public.agreement_pk());
     vk.verify_strict(&msg, &sig).is_ok()
+}
+
+/// The seed `TestRng::new(state)` yields for `len` bytes - lets a test
+/// replay `generate`'s exact seed through `from_seed`.
+fn seed_of(state: u64, len: usize) -> Vec<u8> {
+    let mut rng = TestRng::new(state);
+    let mut out = vec![0u8; len];
+    rng.fill_bytes(&mut out);
+    out
 }
 
 // --- Known-answer vectors ------------------------------------------------
@@ -243,7 +253,7 @@ fn generate_consumes_exactly_the_replayable_seed() {
     let state = 0xCAFE;
     let generated = Identity::generate(&mut TestRng::new(state));
 
-    let seed = common::seed_of(state, 32);
+    let seed = seed_of(state, 32);
     let mut seed_arr = [0u8; 32];
     seed_arr.copy_from_slice(&seed);
     let replayed = Identity::from_seed(seed_arr);

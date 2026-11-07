@@ -3,8 +3,6 @@
 //! Only deterministic test scaffolding lives here - never production
 //! randomness. Each `tests/*.rs` file opts in with `mod common;`.
 
-use rand_core::RngCore;
-
 /// Deterministic splitmix64 PRNG implementing `rand_core::RngCore`.
 ///
 /// Non-cryptographic on purpose: tests need reproducible byte streams to
@@ -44,13 +42,4 @@ impl rand_core::RngCore for TestRng {
         self.fill_bytes(dest);
         Ok(())
     }
-}
-
-/// The seed `TestRng::new(state)` yields for `len` bytes - lets a test
-/// replay `generate`'s exact seed through `from_seed`.
-pub fn seed_of(state: u64, len: usize) -> Vec<u8> {
-    let mut rng = TestRng::new(state);
-    let mut out = vec![0u8; len];
-    rng.fill_bytes(&mut out);
-    out
 }

@@ -187,6 +187,12 @@ impl SecretIdentity {
             agreement_sk: Zeroizing::new(agreement_sk),
         }
     }
+
+    /// The signing key bytes for signing inside this crate (IDN-04).
+    /// Never exposed publicly: signatures go through `Identity::sign`.
+    pub(crate) fn signing_sk(&self) -> &[u8; 32] {
+        &self.signing_sk
+    }
 }
 
 impl Zeroize for SecretIdentity {
@@ -229,6 +235,12 @@ pub enum IdentError {
     /// A suite byte no version of this crate knows (ADR-0001: unknown is a
     /// typed error, never a guess).
     UnknownSuite(u8),
+    /// An empty, over-long, non-ASCII or NUL-containing signature domain.
+    InvalidDomain,
+    /// A public key that does not decode, or is small-order ("weak").
+    InvalidPublicKey,
+    /// A signature that does not verify under the given context/message.
+    InvalidSignature,
 }
 
 impl fmt::Display for IdentError {
@@ -237,6 +249,11 @@ impl fmt::Display for IdentError {
             IdentError::UnknownSuite(byte) => {
                 write!(f, "unknown crypto suite byte 0x{byte:02x}")
             }
+            IdentError::InvalidDomain => {
+                f.write_str("invalid signature domain: must be 1..=255 ASCII bytes without NUL")
+            }
+            IdentError::InvalidPublicKey => f.write_str("invalid or small-order public key"),
+            IdentError::InvalidSignature => f.write_str("signature does not verify"),
         }
     }
 }
