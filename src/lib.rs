@@ -24,9 +24,11 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod blob;
 mod identity;
 mod sign;
 mod types;
 
+pub use blob::SignedBlob;
 pub use identity::Identity;
 pub use types::{IdentError, NodeId, PublicIdentity, SecretIdentity, Signature, SuiteId};
