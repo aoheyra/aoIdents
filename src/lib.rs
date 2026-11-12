@@ -26,7 +26,9 @@
 
 mod identity;
 mod sign;
+mod tag;
 mod types;
 
 pub use identity::Identity;
+pub use tag::{EPOCH_MAX_MS, EPOCH_MIN_MS, RotatingTag};
 pub use types::{IdentError, NodeId, PublicIdentity, SecretIdentity, Signature, SuiteId};

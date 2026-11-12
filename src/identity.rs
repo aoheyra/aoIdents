@@ -69,8 +69,8 @@ impl Identity {
     /// Deterministic: the same seed always produces the same keys, binding
     /// and `NodeId` (known-answer tests in `tests/idn03_identity.rs`).
     pub fn from_seed(mut seed: [u8; 32]) -> Self {
-        let mut signing_sk = hkdf_expand(&seed, INFO_SIGNING);
-        let mut agreement_sk = hkdf_expand(&seed, INFO_AGREEMENT);
+        let mut signing_sk = hkdf_expand(&seed, INFO_SIGNING.as_bytes());
+        let mut agreement_sk = hkdf_expand(&seed, INFO_AGREEMENT.as_bytes());
 
         let signing_key = SigningKey::from_bytes(&signing_sk);
         let signing_pk = signing_key.verifying_key().to_bytes();
@@ -127,15 +127,16 @@ impl Identity {
 }
 
 /// HKDF-SHA-256 expand with salt = suite byte, one label per use
-/// (ADR-0001). Returns32 bytes.
-fn hkdf_expand(seed: &[u8; 32], info: &str) -> [u8; 32] {
+/// (ADR-0001). Returns 32 bytes. `info` is the registered label
+/// bytes, optionally suffixed (e.g. by an epoch index, IDN-12).
+pub(crate) fn hkdf_expand(seed: &[u8; 32], info: &[u8]) -> [u8; 32] {
     let hk = Hkdf::<Sha256>::new(Some(&[SUITE_BYTE]), seed);
     let mut okm = [0u8; 32];
     // RFC 5869 caps HKDF-Expand output at 255 * HashLen = 8160 bytes for
     // SHA-256, so requesting 32 bytes can never fail: the error depends
     // only on this constant, never on the (external) seed. This mirrors
     // the `hkdf` crate's own documented usage.
-    hk.expand(info.as_bytes(), &mut okm)
+    hk.expand(info, &mut okm)
         .expect("32 bytes is always a valid HKDF-SHA-256 output length");
     okm
 }

@@ -52,6 +52,7 @@ Exactly one string from the namespace `aoheyra/idn/v1/...` (ASCII, no NUL) per s
 | `aoheyra/idn/v1/seal` | HKDF info | ephemeral DH → AEAD key (IDN-09) |
 | `aoheyra/idn/v1/wrap` | HKDF info | content key per recipient (IDN-10) |
 | `aoheyra/idn/v1/pairwise-tag` | HKDF info | contact-recognisable rotating tag (IDN-12) |
+| `aoheyra/idn/v1/epoch-tag` | HKDF info | baseline per-epoch rotating tag, suffixed with the epoch index (IDN-12) |
 | `aoheyra/idn/v1/backup` | HKDF info | passphrase-encrypted backup blob (IDN-06) |
 | `aoheyra/idn/v1/prekey` | HKDF info | X3DH initial agreement (IDN-15) |
 | `aoheyra/idn/v1/group-sender` | HKDF info | sender key for channels (IDN-17) |
