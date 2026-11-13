@@ -290,6 +290,15 @@ pub enum IdentError {
     ContactBookFull,
     /// A petname over the 64-byte local limit (IDN-08).
     PetnameTooLong,
+    /// A key id over the 64-byte store limit (IDN-05).
+    KeyRefTooLong,
+    /// A sealed blob over the 4096-byte store limit (IDN-05).
+    BlobTooLarge,
+    /// A key store already holding its maximum entry count (IDN-05).
+    StoreFull,
+    /// A key store backend (aoheyra's device keystore) reported a
+    /// failure, with its own context (IDN-05).
+    StoreBackend(String),
 }
 
 impl fmt::Display for IdentError {
@@ -338,6 +347,10 @@ impl fmt::Display for IdentError {
             IdentError::UnknownContact => f.write_str("no such contact in the book"),
             IdentError::ContactBookFull => f.write_str("contact book is at its 512-entry capacity"),
             IdentError::PetnameTooLong => f.write_str("petname exceeds the 64-byte limit"),
+            IdentError::KeyRefTooLong => f.write_str("key id exceeds the 64-byte limit"),
+            IdentError::BlobTooLarge => f.write_str("sealed blob exceeds the 4096-byte limit"),
+            IdentError::StoreFull => f.write_str("key store is at its 16-entry capacity"),
+            IdentError::StoreBackend(message) => write!(f, "key store backend failed: {message}"),
         }
     }
 }

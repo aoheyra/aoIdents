@@ -28,6 +28,7 @@ mod blob;
 mod card;
 mod contact;
 mod identity;
+mod keystore;
 mod seal;
 mod sign;
 mod tag;
@@ -40,6 +41,10 @@ pub use contact::{
     MemoryContactStore, Trust, safety_number,
 };
 pub use identity::Identity;
+pub use keystore::{
+    KeyStore, MAX_BLOB_BYTES, MAX_ENTRIES, MAX_KEY_ID_BYTES, MemoryKeyStore, SealedBlob,
+    validate_key_id,
+};
 pub use seal::{MSG_ID_LEN, OpenedMessage, SealedMessage};
 pub use tag::{EPOCH_MAX_MS, EPOCH_MIN_MS, RotatingTag};
 pub use types::{IdentError, NodeId, PublicIdentity, SecretIdentity, Signature, SuiteId};
