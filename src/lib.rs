@@ -30,6 +30,7 @@ mod contact;
 mod identity;
 mod keystore;
 mod multi_seal;
+mod replay;
 mod seal;
 mod sign;
 mod tag;
@@ -47,6 +48,10 @@ pub use keystore::{
     validate_key_id,
 };
 pub use multi_seal::{MAX_RECIPIENTS, MultiSealedMessage, RECIPIENT_WRAP_LEN};
+pub use replay::{
+    MAX_ENTRIES as MAX_REPLAY_ENTRIES, MAX_SENDERS, MAX_TOLERANCE_MS, MAX_WINDOW, ReplayConfig,
+    ReplayGuard,
+};
 pub use seal::{MSG_ID_LEN, OpenedMessage, SealedMessage};
 pub use tag::{EPOCH_MAX_MS, EPOCH_MIN_MS, RotatingTag};
 pub use types::{IdentError, NodeId, PublicIdentity, SecretIdentity, Signature, SuiteId};

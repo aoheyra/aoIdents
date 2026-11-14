@@ -290,6 +290,23 @@ pub enum IdentError {
     ContactBookFull,
     /// A petname over the 64-byte local limit (IDN-08).
     PetnameTooLong,
+    /// The same message id accepted twice from the same sender
+    /// (IDN-14).
+    Replay,
+    /// A message timestamp further than the configured tolerance from
+    /// `now`, in either direction (IDN-14).
+    StaleTimestamp,
+    /// The replay guard is at capacity and every sender it holds is
+    /// fresh: a new sender or a full per-sender window is refused
+    /// rather than evicting live state (IDN-14).
+    GuardFull,
+    /// A replay-guard configuration outside the supported bounds
+    /// (IDN-14).
+    InvalidGuardConfig,
+    /// A replay-guard state encoding that is truncated, has trailing
+    /// bytes, an unknown version, a count over the caller's config or
+    /// a duplicate entry (IDN-14).
+    MalformedGuard,
     /// A key id over the 64-byte store limit (IDN-05).
     KeyRefTooLong,
     /// A sealed blob over the 4096-byte store limit (IDN-05).
@@ -354,6 +371,21 @@ impl fmt::Display for IdentError {
             IdentError::UnknownContact => f.write_str("no such contact in the book"),
             IdentError::ContactBookFull => f.write_str("contact book is at its 512-entry capacity"),
             IdentError::PetnameTooLong => f.write_str("petname exceeds the 64-byte limit"),
+            IdentError::Replay => f.write_str(
+                "replay rejected: this message id was already accepted from this sender",
+            ),
+            IdentError::StaleTimestamp => {
+                f.write_str("message timestamp is outside the replay-guard tolerance window")
+            }
+            IdentError::GuardFull => {
+                f.write_str("replay guard is at capacity with only fresh senders")
+            }
+            IdentError::InvalidGuardConfig => {
+                f.write_str("replay-guard config is zero, oversized or over the entry budget")
+            }
+            IdentError::MalformedGuard => {
+                f.write_str("replay-guard state is malformed, truncated or non-canonical")
+            }
             IdentError::KeyRefTooLong => f.write_str("key id exceeds the 64-byte limit"),
             IdentError::BlobTooLarge => f.write_str("sealed blob exceeds the 4096-byte limit"),
             IdentError::StoreFull => f.write_str("key store is at its 16-entry capacity"),
