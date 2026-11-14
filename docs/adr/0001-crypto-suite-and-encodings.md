@@ -43,6 +43,7 @@ Exactly one string from the namespace `aoheyra/idn/v1/...` (ASCII, no NUL) per s
 | `aoheyra/idn/v1/node-id` | BLAKE3 input | `NodeId` derivation (IDN-03) |
 | `aoheyra/idn/v1/bind-agreement` | signature | agreement key bound to identity (IDN-03) |
 | `aoheyra/idn/v1/card` | signature | IdentityCard self-signature (IDN-07) |
+| `aoheyra/idn/v1/card-hash` | BLAKE3 input | QR checksum (4 bytes) and card announcement hash (8 bytes) (IDN-07) |
 | `aoheyra/idn/v1/msg` | signature | sender authentication inside sealed message (IDN-09) |
 | `aoheyra/idn/v1/blob` | signature | SignedBlob: presence, public channels (IDN-11) |
 | `aoheyra/idn/v1/prekey-bundle` | signature | signed prekey bundle (IDN-15) |
@@ -52,6 +53,7 @@ Exactly one string from the namespace `aoheyra/idn/v1/...` (ASCII, no NUL) per s
 | `aoheyra/idn/v1/seal` | HKDF info | ephemeral DH → AEAD key (IDN-09) |
 | `aoheyra/idn/v1/wrap` | HKDF info | content key per recipient (IDN-10) |
 | `aoheyra/idn/v1/pairwise-tag` | HKDF info | contact-recognisable rotating tag (IDN-12) |
+| `aoheyra/idn/v1/epoch-tag` | HKDF info | baseline per-epoch rotating tag, suffixed with the epoch index (IDN-12) |
 | `aoheyra/idn/v1/backup` | HKDF info | passphrase-encrypted backup blob (IDN-06) |
 | `aoheyra/idn/v1/prekey` | HKDF info | X3DH initial agreement (IDN-15) |
 | `aoheyra/idn/v1/group-sender` | HKDF info | sender key for channels (IDN-17) |

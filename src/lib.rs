@@ -25,10 +25,21 @@
 #![deny(missing_docs)]
 
 mod blob;
+mod card;
+mod contact;
 mod identity;
+mod seal;
 mod sign;
+mod tag;
 mod types;
 
 pub use blob::SignedBlob;
+pub use card::IdentityCard;
+pub use contact::{
+    Contact, ContactBook, ContactStore, ContactUpdate, MAX_CONTACTS, MAX_PETNAME_BYTES,
+    MemoryContactStore, Trust, safety_number,
+};
 pub use identity::Identity;
+pub use tag::{EPOCH_MAX_MS, EPOCH_MIN_MS, RotatingTag};
+pub use seal::{MSG_ID_LEN, OpenedMessage, SealedMessage};
 pub use types::{IdentError, NodeId, PublicIdentity, SecretIdentity, Signature, SuiteId};
