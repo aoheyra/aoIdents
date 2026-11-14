@@ -10,6 +10,11 @@
 /// a CSPRNG from its caller.
 pub struct TestRng(u64);
 
+/// Marker so deterministic test streams satisfy `CryptoRng`-bounded
+/// APIs (the sealed-message ephemeral draw). Production callers pass a
+/// real CSPRNG; this impl exists only inside `tests/`.
+impl rand_core::CryptoRng for TestRng {}
+
 impl TestRng {
     /// A rng with the given state.
     pub fn new(state: u64) -> Self {

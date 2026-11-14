@@ -193,6 +193,13 @@ impl SecretIdentity {
     pub(crate) fn signing_sk(&self) -> &[u8; 32] {
         &self.signing_sk
     }
+
+    /// The agreement key bytes for the Diffie-Hellman inside this
+    /// crate (IDN-09). Never exposed publicly: sealed messages open
+    /// through `SealedMessage::open`.
+    pub(crate) fn agreement_sk(&self) -> &[u8; 32] {
+        &self.agreement_sk
+    }
 }
 
 impl Zeroize for SecretIdentity {
@@ -255,6 +262,15 @@ pub enum IdentError {
     /// A QR string whose 4-byte checksum does not match the card
     /// bytes (IDN-07).
     ChecksumMismatch,
+    /// A payload whose sealed encoding would exceed the 65535-byte
+    /// length field (IDN-09).
+    PayloadTooLarge,
+    /// AEAD authentication failed: wrong recipient, wrong message ID
+    /// or a tampered field (IDN-09).
+    OpenFailed,
+    /// A sealed-message encoding or decrypted payload that does not
+    /// parse (IDN-09).
+    MalformedSealed,
     /// Presented keys that do not hash to the claimed `NodeId`: for
     /// a known contact this is a key change, for an unknown claim it
     /// is a mismatch - nothing was stored (IDN-08).
@@ -292,6 +308,15 @@ impl fmt::Display for IdentError {
             }
             IdentError::ChecksumMismatch => {
                 f.write_str("QR checksum does not match the card bytes")
+            }
+            IdentError::PayloadTooLarge => {
+                f.write_str("payload exceeds the 65535-byte sealed encoding limit")
+            }
+            IdentError::OpenFailed => {
+                f.write_str("seal did not open: wrong recipient, wrong message ID or tampered data")
+            }
+            IdentError::MalformedSealed => {
+                f.write_str("sealed-message encoding is malformed or truncated")
             }
             IdentError::KeyChanged(node_id) => write!(
                 f,
