@@ -129,6 +129,32 @@ fn pairwise_mode_lets_a_contact_recompute_the_tag() {
     assert_ne!(eve.tag(600_000), alice.tag(600_000));
 }
 
+/// Known-answer vector, independently derived with Python 3
+/// (`cryptography` 50.0.2): HKDF-SHA-256 (RFC 5869, salt `0x01`)
+/// under the pairwise label with the big-endian epoch index, per
+/// ADR-0001. Independent of this crate's code; the crate must
+/// reproduce the tag and its 8-byte hint byte for byte.
+#[test]
+fn known_answer_pairwise_tag_vector() {
+    let tag = RotatingTag::pairwise([0x42u8; 32], 600_000).expect("10 minutes is in range");
+    assert_eq!(
+        tag.epoch_index(1_700_000_000),
+        2833,
+        "epoch index feeds the vector"
+    );
+    assert_eq!(
+        hex(&tag.tag(1_700_000_000)),
+        "e95354d1f1826bd89f20fe315470b544",
+        "tag must match the independent derivation"
+    );
+    assert_eq!(hex(&tag.hint(1_700_000_000)), "e95354d1f1826bd8");
+}
+
+/// `hex` for the known-answer vector above.
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// Epoch lengths outside 10-15 minutes are a typed error, both sides
 /// of the range.
 #[test]

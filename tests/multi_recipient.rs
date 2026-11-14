@@ -291,6 +291,46 @@ fn debug_never_prints_contents() {
     assert!(!debugged.contains(&hex(sealed.ciphertext())));
 }
 
+/// The checked-in test vector: the exact bytes this construction
+/// produces for fixed inputs and a fixed RNG stream, so an accidental
+/// wire or derivation change fails CI. Both listed recipients must
+/// open it; it was generated once from this implementation and
+/// reviewed before check-in.
+#[test]
+fn checked_in_test_vector_opens_for_every_recipient() {
+    const VECTOR_HEX: &str = "0109090909090909090909090909090909f22348245a58bc0906db803cfa3144de5d6d37451c67e93702ab850e1d8a101964663719c2a94125e32f750db31a84db6de28ec8f4ee2004c2514745483a57f679be5016450e8a347ee6463e7f89ed6d83b76ded4773971f8514ddc8961dbf813d6145353e9c295c59e1a496711f48bae87481ee8530295e9ae11f1967e9e9405a001151c7171490437208ff65a67b637338861391bb3be75ffa6f382c5cfd17b4e3cdfbcd0945399cdc8dc1ea6ac93a26076aa848f4dfea1760b872291aca5eb0e8a355644b4413f52b49a31fadcbaee3b342803c761b325eece36a82cdc1a9a6fa7612e8f8b8b379cff2dad5ef7527d69967efe711fab00b00db80c439516a4a348b2e2a92b05539198bcd4551ecd9fa5a35e4cb30a218d39b5f80d455df8493503eec291d527f9636c969d97e208f920404feb92e8084be14e03c2fb493c8eb1a713798ece7cc7fbb6328818df843bbc192b0ba94b8be6099b49a708ad6d3d5a74ea426b173091aa286b4434721e60c8146a73dfe616e4d3ac5fc154e7e814e72be7988ea264363e7471cb3cb2ea30b9d41183ef454b044a1f2f41c7bdff954a415340439e18e523bfe9357cf36a58bc85b5a85d243cb4d2245e4adcbf6033be70305330089a11f1100286d6892e06a469f5ffa2f";
+    let expected: Vec<u8> = (0..VECTOR_HEX.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&VECTOR_HEX[i..i + 2], 16).expect("hex"))
+        .collect();
+
+    let sender = Identity::from_seed([1u8; 32]);
+    let first = Identity::from_seed([2u8; 32]);
+    let second = Identity::from_seed([3u8; 32]);
+    let id = [9u8; MSG_ID_LEN];
+    let sealed = MultiSealedMessage::seal(
+        &sender,
+        &[first.public(), second.public()],
+        &id,
+        b"group hello",
+        &mut TestRng::new(42),
+    )
+    .expect("small plaintext");
+    let actual = sealed.encode();
+    assert_eq!(
+        actual, expected,
+        "sealed output changed: if intentional, this is a protocol change (ADR-0001)"
+    );
+
+    for recipient in [&first, &second] {
+        let opened = MultiSealedMessage::decode(&actual)
+            .expect("vector decodes")
+            .open(recipient)
+            .expect("listed recipient opens the vector");
+        assert_eq!(opened.plaintext(), b"group hello");
+    }
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

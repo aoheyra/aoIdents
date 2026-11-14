@@ -84,6 +84,34 @@ fn sign_reproduces_the_bind_agreement_binding() {
     assert_eq!(mine, *id.public().agreement_binding());
 }
 
+/// Known-answer vector, independently derived with Python 3
+/// (`cryptography` 50.0.2) from the ADR-0001 formulas: HKDF-SHA-256
+/// (RFC 5869, salt `0x01`) for the signing key from seed `07` x32,
+/// then Ed25519 over the length-prefixed preimage. Independent of this
+/// crate's code; the crate must reproduce it byte for byte.
+#[test]
+fn known_answer_signature_vector() {
+    let id = Identity::from_seed([7u8; 32]);
+    let msg = b"aoheyra known-answer message";
+    let sig = id.sign(CTX, msg).expect("registered domain");
+    assert_eq!(
+        hex(sig.as_bytes()),
+        "335ba8bf3c6a350ebb3581700e901f0200f389801a36e238a112e15586989786\
+         2947af55621a861164fc735a6ca01474abc57681b2e2cb1128a3532f0911bb09",
+        "signature must match the independent derivation"
+    );
+    assert!(id.public().verify(CTX, msg, &sig).is_ok());
+    assert_eq!(
+        id.public().verify(OTHER_CTX, msg, &sig),
+        Err(IdentError::InvalidSignature)
+    );
+}
+
+/// `hex` for the known-answer vectors above.
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 // --- Context separation (the done-when) ----------------------------------
 
 #[test]

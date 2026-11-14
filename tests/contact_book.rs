@@ -250,6 +250,42 @@ fn both_parties_compute_the_same_safety_number() {
     );
 }
 
+/// The checked-in test vector: the exact safety number for two fixed
+/// identities, so an accidental domain or derivation change fails
+/// CI. Independently derived once (BLAKE3 over the ADR domain and
+/// sorted keys) and reviewed before check-in; both orderings must
+/// reproduce it.
+#[test]
+fn checked_in_safety_number_vector() {
+    const VECTOR_HEX: &str = "f9eafecb42eb32c5";
+    let expected: Vec<u8> = (0..VECTOR_HEX.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&VECTOR_HEX[i..i + 2], 16).expect("hex"))
+        .collect();
+
+    let a = Identity::from_seed([6u8; 32]);
+    let b = Identity::from_seed([7u8; 32]);
+    let from_a = safety_number(
+        (a.public().signing_pk(), a.public().agreement_pk()),
+        (b.public().signing_pk(), b.public().agreement_pk()),
+    );
+    assert_eq!(
+        &from_a[..],
+        &expected[..],
+        "safety number changed: if intentional, this is a protocol change (ADR-0001)"
+    );
+
+    let from_b = safety_number(
+        (b.public().signing_pk(), b.public().agreement_pk()),
+        (a.public().signing_pk(), a.public().agreement_pk()),
+    );
+    assert_eq!(
+        &from_b[..],
+        &expected[..],
+        "the number must be order-independent"
+    );
+}
+
 mod proptests {
     use super::*;
     use proptest::prelude::*;

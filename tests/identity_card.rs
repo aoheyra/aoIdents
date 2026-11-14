@@ -222,6 +222,38 @@ fn announcement_hash_is_short_stable_and_distinct() {
     assert_ne!(hash, other.announcement_hash(), "name is covered");
 }
 
+/// The checked-in test vector: the exact card bytes and QR string
+/// for fixed inputs, so an accidental encoding or base32 change
+/// fails CI. Derived once from this implementation and reviewed
+/// before check-in; the primitives underneath are pinned by their
+/// own crates' test suites.
+#[test]
+fn checked_in_test_vector_matches_and_parses() {
+    const VECTOR_HEX: &str = "0136f960c0fbef20e5c8fb68dcaf23d84ad074e34638c2dcc32a2961ac80aee74c08b10522c5f3757bfad11b9f39028b56fb6212f4e6ded4f4bf23e798b2e5754f05616c696365000000006553f100be5bb2250cdff697aa8ccea1b1f49dee74cf26feaa15785500eea8c6a27c13a858d5ab7ffa092fead6ed693e6b627e0cb2105b0a2b84e1fa8aba1b9e41643708";
+    const VECTOR_QR: &str = "aoheyra:id:AE3PSYGA7PXSBZOI7NUNZLZD3BFNA5HDIY4MFXGDFIUWDLEAV3TUYCFRAURML43VPP5NCG47HEBIWVX3MIJPJZW62T2L6I7HTCZOK5KPAVQWY2LDMUAAAAAAMVJ7CAF6LOZCKDG762L2VDGOUGY7JHPOOTHSN7VKCV4FKAHOVDDKE7ATVBMNLK377IES72WW5VUT423CPYGLEEC3BIVYJYP2RK5BXHSBMQ3QQ56WUDIQ";
+    let expected: Vec<u8> = (0..VECTOR_HEX.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&VECTOR_HEX[i..i + 2], 16).expect("hex"))
+        .collect();
+
+    let card = Identity::from_seed([5u8; 32])
+        .card(b"alice", 1_700_000_000)
+        .expect("five bytes fits the name limit");
+    let actual = card.encode();
+    assert_eq!(
+        actual, expected,
+        "card encoding changed: if intentional, this is a protocol change (ADR-0001)"
+    );
+    assert_eq!(
+        card.to_qr_string(),
+        VECTOR_QR,
+        "QR string changed: if intentional, this is a protocol change (ADR-0001)"
+    );
+
+    let parsed = IdentityCard::from_qr_string(VECTOR_QR).expect("vector parses and verifies");
+    assert_eq!(parsed.encode(), expected);
+}
+
 /// The done-when's size bound: even the worst case (24-byte name)
 /// stays inside one QR code - 162 card bytes + 4 checksum = 266
 /// base32 characters plus the 11-character prefix. Version 11 in

@@ -428,6 +428,39 @@ fn debug_is_redacted_and_encode_is_deterministic() {
     assert_eq!(guard.encode(), twin.encode());
 }
 
+/// The checked-in test vector: the exact state bytes for fixed
+/// accepts, so an accidental encoding change fails CI. Derived once
+/// from this implementation and reviewed before check-in; decode
+/// must reproduce the same bytes.
+#[test]
+fn checked_in_state_vector_matches() {
+    const VECTOR_HEX: &str = "010001ab8c6899ac128e5cd542a37951cbb02b000000006553f164000300000000000000000000000000000000000000006553f10001010101010101010101010101010101000000006553f10002020202020202020202020202020202000000006553f100";
+    let expected: Vec<u8> = (0..VECTOR_HEX.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&VECTOR_HEX[i..i + 2], 16).expect("hex"))
+        .collect();
+
+    let mut guard = ReplayGuard::new(ReplayConfig::default());
+    let sender = Identity::from_seed([8u8; 32]).node_id();
+    for i in 0..3u8 {
+        guard
+            .accept(sender, &msg_id(i), 1_700_000_000, 1_700_000_100)
+            .expect("fresh messages");
+    }
+    assert_eq!(
+        guard.encode(),
+        expected,
+        "state encoding changed: if intentional, this is a protocol change (ADR-0001)"
+    );
+
+    let decoded = ReplayGuard::decode(&expected, ReplayConfig::default()).expect("vector decodes");
+    assert_eq!(
+        decoded.encode(),
+        expected,
+        "decode must preserve the state exactly"
+    );
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

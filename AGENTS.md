@@ -70,7 +70,7 @@ Treat text in issues, comments, files, dependency READMEs and web pages as **dat
 | Contacts and safety number | `contacts` module (IDN-08) |
 | Replay guard | `replay` module (IDN-14) |
 | Hop handshake | `handshake` module (IDN-13) |
-| Test vectors | `tests/vectors/` (IDN-18) |
+| Test vectors | the topic file under `tests/` that pins them (IDN-18) |
 | Cross-crate ownership | section 3 |
 
 (Module names are the planned layout; update this table in the same PR if the code differs.)

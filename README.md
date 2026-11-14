@@ -2,7 +2,7 @@
 
 **Identity, trust and cryptography for the aoheyra mesh.** A pure-Rust, sans-IO crate: no networking, no I/O, no FFI. It owns who a node *is*, how contacts are trusted, and how messages are signed, sealed and replay-checked.
 
-> **Status: pre-alpha.** IDN-00 (scaffold, package naming, MSRV, CI with cargo-audit), IDN-01 (crypto-suite ADR), IDN-02 (core types and errors), IDN-03 (identity generation and derivation), IDN-04 (context-separated sign/verify), IDN-05 (key store trait), IDN-07 (identity card and QR string), IDN-08 (contact book logic), IDN-09 (sealed message v1), IDN-10 (multi-recipient sealed message), IDN-11 (signed public blobs), IDN-12 (rotating tag generator), IDN-14 (replay guard), IDN-19 (threat model) and IDN-20 (handle ADR) are implemented; everything below is design from the backlog (`IDN-xx` issues) and is not implemented until its issue is closed.
+> **Status: pre-alpha.** IDN-00 (scaffold, package naming, MSRV, CI with cargo-audit), IDN-01 (crypto-suite ADR), IDN-02 (core types and errors), IDN-03 (identity generation and derivation), IDN-04 (context-separated sign/verify), IDN-05 (key store trait), IDN-07 (identity card and QR string), IDN-08 (contact book logic), IDN-09 (sealed message v1), IDN-10 (multi-recipient sealed message), IDN-11 (signed public blobs), IDN-12 (rotating tag generator), IDN-14 (replay guard), IDN-18 (known-answer vectors, property-test and audit gating, constant-time checklist), IDN-19 (threat model) and IDN-20 (handle ADR) are implemented; everything below is design from the backlog (`IDN-xx` issues) and is not implemented until its issue is closed.
 
 Cargo package name: `ao_idents`.
 
@@ -113,7 +113,8 @@ cargo audit
 cargo doc --no-deps --all-features
 ```
 
-Test vectors live in `tests/vectors/`. CI fails on any security advisory.
+Test vectors live beside the code they pin, in the topic file under
+`tests/` that exercises it. CI fails on any security advisory.
 
 ## Roadmap
 

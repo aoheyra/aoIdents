@@ -37,6 +37,34 @@ fn blob_round_trips_and_verifies() {
     decoded.verify(id.public(), None).expect("verifies");
 }
 
+/// The checked-in test vector: the exact bytes this construction
+/// produces for fixed inputs (body layout, domain, signature), so an
+/// accidental encoding or domain change fails CI. Derived once from
+/// this implementation and reviewed before check-in; the primitives
+/// underneath are pinned by their own crates' test suites.
+#[test]
+fn checked_in_test_vector_matches_and_verifies() {
+    const VECTOR_HEX: &str = "01386adb16bbed232d05698bb8cb7eabc50000000000000007000000006553f100000a68656c6c6f20626c6f62a39b90733c54f2e4d50bbe56875a11661074f77c8ab0f6279b247e9c5ed334aeadbcf70a601ff216cc7d727949d357d23a09dbbccacd158429efe5da16b2a50e";
+    let expected: Vec<u8> = (0..VECTOR_HEX.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&VECTOR_HEX[i..i + 2], 16).expect("hex"))
+        .collect();
+
+    let id = Identity::from_seed([4u8; 32]);
+    let signed = SignedBlob::sign(&id, 7, 1_700_000_000, b"hello blob".to_vec())
+        .expect("registered domain and small payload");
+    let actual = signed.encode();
+    assert_eq!(
+        actual, expected,
+        "blob output changed: if intentional, this is a protocol change (ADR-0001)"
+    );
+
+    let decoded = SignedBlob::decode(&actual).expect("vector decodes");
+    decoded.verify(id.public(), None).expect("vector verifies");
+    assert_eq!(decoded.payload(), b"hello blob");
+    assert_eq!(decoded.origin(), id.node_id());
+}
+
 /// The done-when: verification covers every field. Flipping any single
 /// byte of the encoding must be rejected - either the decode fails or
 /// the signature no longer matches.
