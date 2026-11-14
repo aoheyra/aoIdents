@@ -128,7 +128,7 @@ impl Identity {
 
 /// HKDF-SHA-256 expand with salt = suite byte, one label per use
 /// (ADR-0001). Returns32 bytes.
-fn hkdf_expand(seed: &[u8; 32], info: &str) -> [u8; 32] {
+pub(crate) fn hkdf_expand(seed: &[u8; 32], info: &str) -> [u8; 32] {
     let hk = Hkdf::<Sha256>::new(Some(&[SUITE_BYTE]), seed);
     let mut okm = [0u8; 32];
     // RFC 5869 caps HKDF-Expand output at 255 * HashLen = 8160 bytes for
