@@ -24,6 +24,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod blob;
 mod card;
 mod contact;
 mod identity;
@@ -32,6 +33,7 @@ mod sign;
 mod tag;
 mod types;
 
+pub use blob::SignedBlob;
 pub use card::IdentityCard;
 pub use contact::{
     Contact, ContactBook, ContactStore, ContactUpdate, MAX_CONTACTS, MAX_PETNAME_BYTES,
