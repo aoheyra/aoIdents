@@ -157,7 +157,7 @@ impl SealedMessage {
         rng.fill_bytes(&mut nonce);
 
         let aad = associated_data(sender.suite(), msg_id, &recipient_node_id);
-        let cipher = cipher_from(hkdf_expand(shared.as_bytes(), INFO_SEAL));
+        let cipher = cipher_from(hkdf_expand(shared.as_bytes(), INFO_SEAL.as_bytes()));
         let ciphertext = cipher
             .encrypt(
                 &XNonce::from(nonce),
@@ -204,7 +204,7 @@ impl SealedMessage {
         if !shared.was_contributory() {
             return Err(IdentError::InvalidPublicKey);
         }
-        let cipher = cipher_from(hkdf_expand(shared.as_bytes(), INFO_SEAL));
+        let cipher = cipher_from(hkdf_expand(shared.as_bytes(), INFO_SEAL.as_bytes()));
 
         let mut inner = cipher
             .decrypt(

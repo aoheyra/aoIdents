@@ -255,8 +255,8 @@ pub enum IdentError {
     /// A signed blob encoding that is truncated, over-long or has a
     /// payload length that disagrees with the input (IDN-11).
     MalformedBlob,
-    /// A signed blob payload over the 65535-byte canonical encoding
-    /// limit (IDN-11).
+    /// A payload whose canonical encoding would exceed the 65535-byte
+    /// length field (IDN-09 sealed plaintext, IDN-11 blob payload).
     PayloadTooLarge,
     /// A rotating-tag epoch length outside the 10-15 minute range
     /// (IDN-12).
@@ -272,9 +272,6 @@ pub enum IdentError {
     /// A QR string whose 4-byte checksum does not match the card
     /// bytes (IDN-07).
     ChecksumMismatch,
-    /// A payload whose sealed encoding would exceed the 65535-byte
-    /// length field (IDN-09).
-    PayloadTooLarge,
     /// AEAD authentication failed: wrong recipient, wrong message ID
     /// or a tampered field (IDN-09).
     OpenFailed,
@@ -313,7 +310,7 @@ impl fmt::Display for IdentError {
                 f.write_str("signed blob encoding is malformed, truncated or has trailing bytes")
             }
             IdentError::PayloadTooLarge => {
-                f.write_str("signed blob payload exceeds the 65535-byte encoding limit")
+                f.write_str("payload exceeds the 65535-byte encoding limit")
             }
             IdentError::InvalidEpochLength => {
                 f.write_str("rotating-tag epoch length must be 10-15 minutes (600000..=900000 ms)")
@@ -327,9 +324,6 @@ impl fmt::Display for IdentError {
             }
             IdentError::ChecksumMismatch => {
                 f.write_str("QR checksum does not match the card bytes")
-            }
-            IdentError::PayloadTooLarge => {
-                f.write_str("payload exceeds the 65535-byte sealed encoding limit")
             }
             IdentError::OpenFailed => {
                 f.write_str("seal did not open: wrong recipient, wrong message ID or tampered data")
