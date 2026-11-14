@@ -299,6 +299,13 @@ pub enum IdentError {
     /// A key store backend (aoheyra's device keystore) reported a
     /// failure, with its own context (IDN-05).
     StoreBackend(String),
+    /// A multi-recipient seal with no recipients (IDN-10).
+    NoRecipients,
+    /// A multi-recipient seal over the eight-recipient cap (IDN-10).
+    TooManyRecipients,
+    /// The same recipient listed twice in one multi-recipient seal,
+    /// identified by the duplicated `NodeId` (IDN-10).
+    DuplicateRecipient(NodeId),
 }
 
 impl fmt::Display for IdentError {
@@ -351,6 +358,15 @@ impl fmt::Display for IdentError {
             IdentError::BlobTooLarge => f.write_str("sealed blob exceeds the 4096-byte limit"),
             IdentError::StoreFull => f.write_str("key store is at its 16-entry capacity"),
             IdentError::StoreBackend(message) => write!(f, "key store backend failed: {message}"),
+            IdentError::NoRecipients => {
+                f.write_str("multi-recipient seal needs at least one recipient")
+            }
+            IdentError::TooManyRecipients => {
+                f.write_str("multi-recipient seal exceeds the 8-recipient cap")
+            }
+            IdentError::DuplicateRecipient(node_id) => {
+                write!(f, "recipient {node_id} is listed more than once")
+            }
         }
     }
 }

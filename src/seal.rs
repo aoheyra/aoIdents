@@ -29,7 +29,7 @@ use crate::types::{IdentError, NodeId, PublicIdentity, Signature, SuiteId};
 
 /// Signature domain: sender authentication inside the sealed message
 /// (ADR-0001 registry).
-const DOMAIN_MSG: &str = "aoheyra/idn/v1/msg";
+pub(crate) const DOMAIN_MSG: &str = "aoheyra/idn/v1/msg";
 
 /// HKDF info: ephemeral DH to AEAD key (ADR-0001 registry).
 const INFO_SEAL: &str = "aoheyra/idn/v1/seal";
@@ -40,14 +40,14 @@ pub const MSG_ID_LEN: usize = 16;
 
 /// The authenticated sender inside the ciphertext:
 /// `signing_pk(32) ‖ agreement_pk(32) ‖ agreement_binding(64)`.
-const SENDER_IDENTITY_LEN: usize = 32 + 32 + 64;
+pub(crate) const SENDER_IDENTITY_LEN: usize = 32 + 32 + 64;
 
 /// The sender's signature over `plaintext ‖ recipient NodeId`.
-const MSG_SIG_LEN: usize = 64;
+pub(crate) const MSG_SIG_LEN: usize = 64;
 
 /// XChaCha20-Poly1305 nonce length (ADR-0001: 24 bytes from the
 /// injected RNG, fresh per encryption).
-const NONCE_LEN: usize = 24;
+pub(crate) const NONCE_LEN: usize = 24;
 
 /// Poly1305 tag length, appended to the ciphertext.
 const TAG_LEN: usize = 16;
@@ -57,10 +57,10 @@ const HEADER_LEN: usize = 1 + 32 + NONCE_LEN + 2;
 
 /// Smallest possible ciphertext: sender identity, signature, empty
 /// plaintext, AEAD tag.
-const MIN_CIPHERTEXT_LEN: usize = SENDER_IDENTITY_LEN + MSG_SIG_LEN + TAG_LEN;
+pub(crate) const MIN_CIPHERTEXT_LEN: usize = SENDER_IDENTITY_LEN + MSG_SIG_LEN + TAG_LEN;
 
 /// Largest plaintext that still fits the `u16` ciphertext length.
-const MAX_PLAINTEXT_LEN: usize = u16::MAX as usize - MIN_CIPHERTEXT_LEN;
+pub(crate) const MAX_PLAINTEXT_LEN: usize = u16::MAX as usize - MIN_CIPHERTEXT_LEN;
 
 /// A sealed message: encryptable by anyone holding the recipient's
 /// public identity, openable only by the recipient.
@@ -310,6 +310,12 @@ impl SealedMessage {
 }
 
 impl OpenedMessage {
+    /// Build the opened result from decrypted parts; the
+    /// multi-recipient opener shares this return type.
+    pub(crate) fn new(plaintext: Vec<u8>, sender: PublicIdentity) -> Self {
+        Self { plaintext, sender }
+    }
+
     /// The decrypted plaintext.
     #[must_use]
     pub fn plaintext(&self) -> &[u8] {
@@ -338,7 +344,7 @@ fn associated_data(suite: SuiteId, msg_id: &[u8; MSG_ID_LEN], recipient: &NodeId
 /// Build the AEAD cipher from derived key bytes and wipe both copies
 /// of the key we hold: the raw HKDF output and the `Key` array. The
 /// cipher keeps its own state (the `zeroize` feature drops it).
-fn cipher_from(mut raw: [u8; 32]) -> XChaCha20Poly1305 {
+pub(crate) fn cipher_from(mut raw: [u8; 32]) -> XChaCha20Poly1305 {
     let mut key = Key::from(raw);
     let cipher = XChaCha20Poly1305::new(&key);
     key.zeroize();

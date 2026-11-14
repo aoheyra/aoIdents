@@ -29,6 +29,7 @@ mod card;
 mod contact;
 mod identity;
 mod keystore;
+mod multi_seal;
 mod seal;
 mod sign;
 mod tag;
@@ -45,6 +46,7 @@ pub use keystore::{
     KeyStore, MAX_BLOB_BYTES, MAX_ENTRIES, MAX_KEY_ID_BYTES, MemoryKeyStore, SealedBlob,
     validate_key_id,
 };
+pub use multi_seal::{MAX_RECIPIENTS, MultiSealedMessage, RECIPIENT_WRAP_LEN};
 pub use seal::{MSG_ID_LEN, OpenedMessage, SealedMessage};
 pub use tag::{EPOCH_MAX_MS, EPOCH_MIN_MS, RotatingTag};
 pub use types::{IdentError, NodeId, PublicIdentity, SecretIdentity, Signature, SuiteId};
