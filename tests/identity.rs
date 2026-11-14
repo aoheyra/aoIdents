@@ -1,4 +1,4 @@
-//! IDN-03: identity generation and derivation.
+//! Identity generation and derivation (IDN-03).
 //!
 //! The done-when is known-answer tests: a fixed seed must reproduce
 //! identical keys and `NodeId`. The key and signature vectors were derived

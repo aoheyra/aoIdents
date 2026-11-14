@@ -1,4 +1,4 @@
-//! IDN-04: context-separated sign and verify.
+//! Context-separated sign and verify (IDN-04).
 //!
 //! Covers the done-when (a signature under one context never verifies
 //! under another; malleability cases) plus every new `IdentError` variant

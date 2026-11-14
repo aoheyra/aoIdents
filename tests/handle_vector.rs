@@ -1,4 +1,4 @@
-//! IDN-20: ADR-0002 handle document and derivation vector.
+//! ADR-0002 handle document and derivation vector (IDN-20).
 //!
 //! This issue ships a decision document, not production code, so the tests
 //! do two jobs: they pin the ADR's exact rules (a silent rule edit fails

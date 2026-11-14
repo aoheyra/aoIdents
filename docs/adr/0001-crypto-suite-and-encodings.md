@@ -43,6 +43,7 @@ Exactly one string from the namespace `aoheyra/idn/v1/...` (ASCII, no NUL) per s
 | `aoheyra/idn/v1/node-id` | BLAKE3 input | `NodeId` derivation (IDN-03) |
 | `aoheyra/idn/v1/bind-agreement` | signature | agreement key bound to identity (IDN-03) |
 | `aoheyra/idn/v1/card` | signature | IdentityCard self-signature (IDN-07) |
+| `aoheyra/idn/v1/card-hash` | BLAKE3 input | QR checksum (4 bytes) and card announcement hash (8 bytes) (IDN-07) |
 | `aoheyra/idn/v1/msg` | signature | sender authentication inside sealed message (IDN-09) |
 | `aoheyra/idn/v1/blob` | signature | SignedBlob: presence, public channels (IDN-11) |
 | `aoheyra/idn/v1/prekey-bundle` | signature | signed prekey bundle (IDN-15) |

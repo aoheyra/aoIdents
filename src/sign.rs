@@ -35,16 +35,7 @@ impl PublicIdentity {
     /// [`IdentError::InvalidPublicKey`] (key does not decode or is
     /// small-order), [`IdentError::InvalidSignature`] (does not verify).
     pub fn verify(&self, ctx: &str, msg: &[u8], sig: &Signature) -> Result<(), IdentError> {
-        validate_domain(ctx)?;
-        let vk = VerifyingKey::from_bytes(self.signing_pk())
-            .map_err(|_| IdentError::InvalidPublicKey)?;
-        if vk.is_weak() {
-            // A small-order key would "verify" almost any message.
-            return Err(IdentError::InvalidPublicKey);
-        }
-        let sig = DalekSignature::from_bytes(sig.as_bytes());
-        vk.verify_strict(&preimage(ctx, msg), &sig)
-            .map_err(|_| IdentError::InvalidSignature)
+        verify_signing_pk(self.signing_pk(), ctx, msg, sig)
     }
 
     /// Verify the bind-agreement binding: the agreement key belongs to
@@ -57,6 +48,26 @@ impl PublicIdentity {
             self.agreement_binding(),
         )
     }
+}
+
+/// Strict Ed25519 verification against a bare signing public key: the
+/// same rules as [`PublicIdentity::verify`], for structures that carry
+/// only a signing key (the identity card, IDN-07).
+pub(crate) fn verify_signing_pk(
+    signing_pk: &[u8; 32],
+    ctx: &str,
+    msg: &[u8],
+    sig: &Signature,
+) -> Result<(), IdentError> {
+    validate_domain(ctx)?;
+    let vk = VerifyingKey::from_bytes(signing_pk).map_err(|_| IdentError::InvalidPublicKey)?;
+    if vk.is_weak() {
+        // A small-order key would "verify" almost any message.
+        return Err(IdentError::InvalidPublicKey);
+    }
+    let sig = DalekSignature::from_bytes(sig.as_bytes());
+    vk.verify_strict(&preimage(ctx, msg), &sig)
+        .map_err(|_| IdentError::InvalidSignature)
 }
 
 /// Validate a signature domain: 1..=255 ASCII bytes, no NUL - exactly the

@@ -1,4 +1,4 @@
-//! IDN-19: the threat model must state its limits explicitly.
+//! The threat model must state its limits explicitly (IDN-19).
 //!
 //! The document is part of the security contract: these tests pin the
 //! statements IDN-19's done-when requires, so silently weakening the

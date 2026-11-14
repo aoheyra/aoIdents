@@ -1,4 +1,4 @@
-//! IDN-02: core types and errors.
+//! Core types and errors (IDN-02).
 //!
 //! Covers the done-when directly: no secret type prints contents, `Clone`
 //! is explicit and correct, zeroization is observable, equality is right,
