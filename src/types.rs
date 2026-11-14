@@ -248,6 +248,9 @@ pub enum IdentError {
     InvalidPublicKey,
     /// A signature that does not verify under the given context/message.
     InvalidSignature,
+    /// A rotating-tag epoch length outside the 10-15 minute range
+    /// (IDN-12).
+    InvalidEpochLength,
     /// A card display name over the 24-byte limit (IDN-07).
     NameTooLong,
     /// A card encoding with a bad length or an over-long name field
@@ -293,6 +296,9 @@ impl fmt::Display for IdentError {
             }
             IdentError::InvalidPublicKey => f.write_str("invalid or small-order public key"),
             IdentError::InvalidSignature => f.write_str("signature does not verify"),
+            IdentError::InvalidEpochLength => {
+                f.write_str("rotating-tag epoch length must be 10-15 minutes (600000..=900000 ms)")
+            }
             IdentError::NameTooLong => f.write_str("display name exceeds the 24-byte card limit"),
             IdentError::MalformedCard => {
                 f.write_str("identity card encoding is malformed or truncated")
