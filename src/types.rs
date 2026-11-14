@@ -241,6 +241,16 @@ pub enum IdentError {
     InvalidPublicKey,
     /// A signature that does not verify under the given context/message.
     InvalidSignature,
+    /// A signed blob whose `seq` is not strictly newer than the latest
+    /// one accepted (IDN-11). Distinct from a forged blob so callers
+    /// can log stale reprints and forgery attempts differently.
+    StaleBlob,
+    /// A signed blob encoding that is truncated, over-long or has a
+    /// payload length that disagrees with the input (IDN-11).
+    MalformedBlob,
+    /// A signed blob payload over the 65535-byte canonical encoding
+    /// limit (IDN-11).
+    PayloadTooLarge,
 }
 
 impl fmt::Display for IdentError {
@@ -254,6 +264,15 @@ impl fmt::Display for IdentError {
             }
             IdentError::InvalidPublicKey => f.write_str("invalid or small-order public key"),
             IdentError::InvalidSignature => f.write_str("signature does not verify"),
+            IdentError::StaleBlob => {
+                f.write_str("blob sequence number is not newer than the latest accepted")
+            }
+            IdentError::MalformedBlob => {
+                f.write_str("signed blob encoding is malformed, truncated or has trailing bytes")
+            }
+            IdentError::PayloadTooLarge => {
+                f.write_str("signed blob payload exceeds the 65535-byte encoding limit")
+            }
         }
     }
 }
