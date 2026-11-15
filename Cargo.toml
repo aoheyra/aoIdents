@@ -29,5 +29,13 @@ zeroize = "1.8"
 # wipes the internal state; no PHC-string or getrandom features.
 argon2 = { version = "0.5", default-features = false, features = ["alloc", "zeroize"] }
 
+# snow for the Noise XX hop handshake (IDN-13); Apache-2.0 OR MIT,
+# MSRV 1.85 matches this crate. default-features off: the default
+# `std` feature would pull ring and getrandom, and the RNG must be
+# injected (see `handshake`), so the resolver is ours; only the
+# pure-Rust primitives snow needs for 25519_ChaChaPoly_SHA256 are
+# enabled.
+snow = { version = "0.10", default-features = false, features = ["use-curve25519", "use-chacha20poly1305", "use-sha2"] }
+
 [dev-dependencies]
 proptest = "1"

@@ -256,7 +256,8 @@ pub enum IdentError {
     /// payload length that disagrees with the input (IDN-11).
     MalformedBlob,
     /// A payload whose canonical encoding would exceed the 65535-byte
-    /// length field (IDN-09 sealed plaintext, IDN-11 blob payload).
+    /// length field (IDN-09 sealed plaintext, IDN-11 blob payload,
+    /// IDN-13 hop transport).
     PayloadTooLarge,
     /// A rotating-tag epoch length outside the 10-15 minute range
     /// (IDN-12).
@@ -273,7 +274,7 @@ pub enum IdentError {
     /// bytes (IDN-07).
     ChecksumMismatch,
     /// AEAD authentication failed: wrong recipient, wrong message ID
-    /// or a tampered field (IDN-09).
+    /// or a tampered field (IDN-09, IDN-13 hop transport).
     OpenFailed,
     /// A sealed-message encoding or decrypted payload that does not
     /// parse (IDN-09).
@@ -340,6 +341,17 @@ pub enum IdentError {
     /// recorded in its header: the backup claims an identity its
     /// seed does not produce (IDN-06).
     IdentityMismatch(NodeId),
+    /// A Noise handshake failure: messages out of order, malformed,
+    /// truncated, oversized, or an ephemeral-key buffer that ran out
+    /// (IDN-13).
+    HandshakeFailed(String),
+    /// A completed handshake whose remote static key does not match
+    /// the neighbour's IdentityCard: the other end is not who the
+    /// card says it is (IDN-13).
+    ImpostorCard,
+    /// The transport was requested before the handshake finished
+    /// (IDN-13).
+    HandshakeNotComplete,
 }
 
 impl fmt::Display for IdentError {
@@ -430,6 +442,11 @@ impl fmt::Display for IdentError {
                     "backup seed does not derive the recorded NodeId {node_id}"
                 )
             }
+            IdentError::HandshakeFailed(message) => write!(f, "hop handshake failed: {message}"),
+            IdentError::ImpostorCard => {
+                f.write_str("handshake static key does not match the neighbour's IdentityCard")
+            }
+            IdentError::HandshakeNotComplete => f.write_str("hop handshake has not finished"),
         }
     }
 }

@@ -29,6 +29,7 @@ mod backup;
 mod blob;
 mod card;
 mod contact;
+mod handshake;
 mod identity;
 mod keystore;
 mod multi_seal;
@@ -45,6 +46,7 @@ pub use contact::{
     Contact, ContactBook, ContactStore, ContactUpdate, MAX_CONTACTS, MAX_PETNAME_BYTES,
     MemoryContactStore, Trust, safety_number,
 };
+pub use handshake::{HopHandshake, HopTransport};
 pub use identity::Identity;
 pub use keystore::{
     KeyStore, MAX_BLOB_BYTES, MAX_ENTRIES, MAX_KEY_ID_BYTES, MemoryKeyStore, SealedBlob,

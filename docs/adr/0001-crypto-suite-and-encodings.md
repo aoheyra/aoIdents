@@ -16,7 +16,7 @@ Suite ID `0x01` fixes the primitives below. Every structure starts with its suit
 | Hash, IDs | BLAKE3-256 | `blake3` | truncated to 16 bytes for `NodeId` (128-bit collision resistance) |
 | Key derivation | HKDF-SHA-256 (RFC 5869) | `hkdf` + `sha2` | Extract with salt = suite byte `0x01`; one distinct `info` string per use (table below) |
 | Password KDF (IDN-06) | Argon2id | `argon2` | parameters documented in IDN-06 |
-| Hop handshake (IDN-13) | Noise XX | `snow` | separate protocol; static keys verified against the IdentityCard |
+| Hop handshake (IDN-13) | Noise XX `25519_ChaChaPoly_SHA256` | `snow` | separate protocol; static keys verified against the IdentityCard |
 
 KDF options: **HKDF-SHA-256 (chosen)** — the backlog specifies HKDF; RFC 5869, standard, audited; SHA-256 exists only inside HKDF. BLAKE3-KDF rejected: one less crate, but it is not HKDF and would silently diverge from the stated suite.
 
