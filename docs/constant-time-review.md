@@ -2,10 +2,13 @@
 
 Secret material in this crate: the two secret keys inside
 [`SecretIdentity`](https://docs.rs/ao_idents), the pairwise/baseline
-seed inside `RotatingTag`, AEAD keys and nonces inside `seal` and
-`multi_seal` (all `zeroize`-managed), and the sealed blobs in a
-key store. Everything else the crate compares - `NodeId`s, public
-keys, safety numbers, signatures, msg ids - is public by design and
+seed inside `RotatingTag`, AEAD keys and nonces inside `seal`,
+`multi_seal`, `prekey` and `group` (all `zeroize`-managed), the
+X3DH shared secret and one-time prekey secrets (`prekey`), sender
+chain and skipped-message keys (`group`), the sealed blobs in a
+key store, and the Argon2id-encrypted backup export (`backup`).
+Everything else the crate compares - `NodeId`s, public keys,
+safety numbers, signatures, msg ids - is public by design and
 may be compared in variable time.
 
 When touching secret handling, re-check each item:
@@ -22,10 +25,12 @@ When touching secret handling, re-check each item:
    secret bytes with `==`.
 3. **AEAD tag checks stay inside the `chacha20poly1305` crate.** Do
    not hand-roll tag comparison after decryption; let `decrypt` fail.
+   The same rule covers `prekey` and `group` messages.
 4. **Secrets are zeroized on every exit path.** Keys live in
    `zeroize::Zeroizing` or are explicitly `zeroize()`d at the end of
    the function that derived them (see `Identity::from_seed`).
-   A new derivation must do the same, including error paths.
+   A new derivation must do the same, including error paths -
+   X3DH outputs (`prekey`) and chain advancement (`group`) count.
 5. **No secret-dependent branches or table indices** in code this
    crate owns. The primitives (HKDF, Ed25519, X25519, BLAKE3,
    XChaCha20-Poly1305) provide this; we must not add our own

@@ -74,23 +74,24 @@ Protected in the MVP: message **content** (sealed to the recipient), sender **au
 **Explicitly not protected in the MVP** (the threat model must say so plainly):
 
 - Origin and destination are **visible to relays** so they can rate-limit spam.
-- **No forward secrecy** against compromise of the recipient's long-term key (addressed later by IDN-15).
+- **No forward secrecy** in sealed v1 against compromise of the recipient's long-term key; IDN-15's prekeys protect messages sealed under a deleted one-time prekey, and a full ratchet remains future work.
 - Contact graph and traffic patterns visible to anyone who can observe relays.
 
 ## API sketch
 
-Illustrative; real signatures come from the issues above.
+Illustrative; the authoritative signatures are the rustdoc (`cargo doc --no-deps`).
 
 ```rust
-let id = Identity::generate(&mut rng);
-let card = id.card("Alice", now)?;               // IdentityCard, self-signed
+let alice = Identity::generate(&mut rng);
+let card = alice.card(b"Alice", created_at)?;    // IdentityCard, self-signed
 let qr = card.to_qr_string();                    // aoheyra:id:<base32>
 
-let sealed = id.seal(&bob_card, message_id, plaintext, now, &mut rng)?;
-let opened = bob.open(&sealed)?;                 // plaintext + authenticated sender
+let msg_id = [7u8; MSG_ID_LEN];                  // 16-byte message id
+let sealed = SealedMessage::seal(&alice, bob.public(), &msg_id, plaintext, &mut rng)?;
+let opened = sealed.open(&bob, &msg_id)?;         // plaintext + authenticated sender
 
-let sig = id.sign(ctx::MESH_PACKET, &bytes);
-verify(&id.public(), ctx::MESH_PACKET, &bytes, &sig)?;
+let sig = alice.sign("aoheyra/idn/v1/example", &bytes)?;
+alice.public().verify("aoheyra/idn/v1/example", &bytes, &sig)?;
 ```
 
 `open` fails for tampering with any field, for the wrong recipient, and (with `ReplayGuard`) for replays.
@@ -118,6 +119,24 @@ cargo doc --no-deps --all-features
 Test vectors live beside the code they pin, in the topic file under
 `tests/` that exercises it. CI fails on any security advisory.
 
+Tests are `cargo test` only: Miri and callgrind are not part of the
+local gate. Optional tooling, run only when explicitly asked:
+
+```bash
+cargo bench              # criterion benches in benches/
+cargo fuzz run <target>  # fuzz targets in fuzz/ (nightly + cargo-fuzz)
+```
+
+Fuzz targets run in CI every Sunday 00:00 IST for up to 60 minutes
+(`.github/workflows/fuzz.yml`). Callgrind profiling runs on manual
+dispatch (`.github/workflows/callgrind.yml`) and wraps a bench binary:
+
+```bash
+cargo bench --no-run
+valgrind --tool=callgrind --callgrind-out-file=callgrind.out \
+  target/release/deps/<bench-binary> --sample-size 10
+```
+
 ## Roadmap
 
 | Milestone | Issues | Outcome |
@@ -129,7 +148,7 @@ Test vectors live beside the code they pin, in the topic file under
 | **M4 Verification** | IDN-18 | Vectors, property tests, audit tooling |
 | **M6 Hardening** | IDN-06, 13, 15, 16, 17 | Backup, hop handshake, prekeys/forward secrecy, rotation/revocation, group keys |
 
-Issue titles carry the ID, e.g. `[IDN-09] Sealed message v1`.
+All milestones are implemented and every `IDN-xx` issue is closed; the table records the original milestone grouping. Issue titles carry the ID, e.g. `[IDN-09] Sealed message v1`.
 
 ## Contributing
 

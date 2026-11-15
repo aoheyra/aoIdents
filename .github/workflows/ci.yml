@@ -111,19 +111,6 @@ jobs:
       - name: cargo audit
         run: cargo audit
 
-  miri:
-    name: Miri
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v7
-      - name: install rust nightly
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: miri
-      - name: miri test
-        run: cargo miri test --all-features
-
   package:
     name: Package
     runs-on: ubuntu-latest

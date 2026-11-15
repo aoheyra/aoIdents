@@ -12,8 +12,10 @@
 //! **Honest limitation:** there is no forward secrecy against
 //! recipient key compromise. The content key is a DH against the
 //! recipient's *static* agreement key, so anyone holding that secret
-//! can open any past sealed message they recorded. Prekeys (IDN-15)
-//! are the planned fix; this document does not pretend otherwise.
+//! can open any past sealed message they recorded. IDN-15's
+//! `PrekeySealedMessage` gives forward secrecy against later
+//! compromise of the long-term key for messages sealed under a
+//! deleted one-time prekey; a full ratchet remains future work.
 
 use chacha20poly1305::{
     Key, XChaCha20Poly1305, XNonce,

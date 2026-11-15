@@ -1,0 +1,41 @@
+name: Fuzz
+
+on:
+  schedule:
+    # Sunday 00:00 IST is Saturday 18:30 UTC.
+    - cron: '30 18 * * 6'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    name: Fuzz (60 minutes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+      - name: install rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+      - name: install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: run every target for its share of the hour
+        run: |
+          n=$(ls fuzz/fuzz_targets/*.rs | wc -l)
+          per=$(( (60 * 60 - 300) / n ))
+          for t in fuzz/fuzz_targets/*.rs; do
+            name=$(basename "$t" .rs)
+            echo "== $name (${per}s)"
+            cargo fuzz run "$name" -- -max_total_time=$per
+          done
+      - name: upload crashes and corpus
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-findings
+          path: |
+            fuzz/artifacts/
+            fuzz/corpus/
+          if-no-files-found: ignore

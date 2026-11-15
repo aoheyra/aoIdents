@@ -1,0 +1,40 @@
+name: Callgrind
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  profile:
+    name: callgrind benches
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+      - name: install rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: install valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+      - name: run every bench binary under callgrind
+        run: |
+          mkdir -p callgrind-out
+          cargo bench --no-run 2>&1 | grep -oE 'target/release/deps/[A-Za-z0-9_-]+' | sort -u | while read -r b; do
+            echo "== $b"
+            valgrind --tool=callgrind --callgrind-out-file="callgrind-out/$(basename "$b").out" \
+              "$b" --sample-size 10 --measurement-time 1 --warm-up-time 1
+          done
+      - name: annotate profiles
+        run: |
+          for f in callgrind-out/*.out; do
+            callgrind_annotate "$f" > "$f.txt"
+          done
+      - name: upload profiles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: callgrind-out
+          path: callgrind-out/
+          if-no-files-found: ignore
