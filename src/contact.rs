@@ -9,8 +9,10 @@
 //!
 //! **Key change is never silent.** A known [`NodeId`] presenting keys
 //! that do not hash to it fails with [`IdentError::KeyChanged`]; the
-//! stored contact is left untouched. A rotation must be an explicit,
-//! verified operation (IDN-16), not a side effect of an announcement.
+//! stored contact is left untouched. A rotation is the explicit,
+//! verified operation [`ContactBook::rotate`]: a statement signed by
+//! the old key chains the successor, never a side effect of an
+//! announcement.
 //!
 //! [`safety_number`] gives both parties the same short number to
 //! compare out of band, so a human can catch a swapped identity.
@@ -19,6 +21,7 @@ use std::collections::BTreeMap;
 
 use crate::card::IdentityCard;
 use crate::identity::{compute_node_id, preimage};
+use crate::rotation::{RevocationNotice, RotationStatement};
 use crate::types::{IdentError, NodeId};
 
 /// HKDF/BLAKE3 domain for safety numbers (ADR-0001 registry).
@@ -258,6 +261,91 @@ impl<S: ContactStore> ContactBook<S> {
     #[must_use]
     pub fn get(&self, node_id: NodeId) -> Option<Contact> {
         self.store.load(node_id)
+    }
+
+    /// Follow a signed rotation: the contact stored under the
+    /// statement's old [`NodeId`] moves to the successor identity,
+    /// carrying its trust level and petname across.
+    ///
+    /// The statement is verified first, so an unsigned or forged one
+    /// changes nothing; the statement's old keys must also be the keys
+    /// we actually know, so a chain that does not meet the stored
+    /// contact is [`IdentError::KeyChanged`]. `Blocked` is sticky on
+    /// either side - a rotation never clears a refusal - while
+    /// `Verified` follows the person, not the key pair.
+    ///
+    /// The successor entry is saved before the old one is deleted, so
+    /// a full book ([`IdentError::ContactBookFull`]) leaves the old
+    /// contact in place. Returns the successor's [`NodeId`].
+    ///
+    /// # Errors
+    ///
+    /// [`IdentError::InvalidRotation`] / [`IdentError::InvalidSignature`]
+    /// for a bad statement, [`IdentError::UnknownContact`] when the old
+    /// identity is not a contact, [`IdentError::KeyChanged`] when the
+    /// statement chains keys other than the stored ones, and
+    /// [`IdentError::ContactBookFull`] when the successor cannot be
+    /// stored.
+    pub fn rotate(&mut self, statement: &RotationStatement) -> Result<NodeId, IdentError> {
+        statement.verify()?;
+        let old_id = statement.old_node_id();
+        let stored = self.store.load(old_id).ok_or(IdentError::UnknownContact)?;
+        let (old_signing, old_agreement) = statement.old_keys();
+        if stored.signing_pk() != old_signing || stored.agreement_pk() != old_agreement {
+            // Defensive: honest contacts always hash to their own id,
+            // so this needs a store that returns a contact for the
+            // wrong key - it must not slip past.
+            return Err(IdentError::KeyChanged(old_id));
+        }
+
+        let (new_signing, new_agreement) = statement.new_keys();
+        let new_id = compute_node_id(new_signing, new_agreement);
+        let existing = self.store.load(new_id);
+
+        // Blocked absorbs; otherwise the stronger level follows, and
+        // the rotated contact's petname wins over an existing one.
+        let trust = match (stored.trust, existing.as_ref().map(Contact::trust)) {
+            (Trust::Blocked, _) | (_, Some(Trust::Blocked)) => Trust::Blocked,
+            (Trust::Verified, _) | (_, Some(Trust::Verified)) => Trust::Verified,
+            _ => Trust::Unverified,
+        };
+        let petname = stored
+            .petname
+            .clone()
+            .or_else(|| existing.and_then(|c| c.petname().map(str::to_owned)));
+        let successor = Contact {
+            node_id: new_id,
+            signing_pk: *new_signing,
+            agreement_pk: *new_agreement,
+            petname,
+            trust,
+            first_seen: stored.first_seen,
+        };
+        self.store.save(successor)?;
+        self.store.delete(old_id);
+        Ok(new_id)
+    }
+
+    /// Apply a self-signed revocation: the contact's trust becomes
+    /// [`Trust::Blocked`].
+    ///
+    /// The entry stays rather than being deleted on purpose - a
+    /// deleted contact would come back as [`ContactUpdate::FirstUse`]
+    /// on the next presentation of the dead keys, while a blocked one
+    /// keeps refusing them. The petname is kept so the human still
+    /// sees whose keys died.
+    ///
+    /// # Errors
+    ///
+    /// [`IdentError::InvalidSignature`] for a forged notice,
+    /// [`IdentError::UnknownContact`] when there is nothing to block -
+    /// never an implicit create.
+    pub fn revoke(&mut self, notice: &RevocationNotice) -> Result<(), IdentError> {
+        notice.verify()?;
+        let node_id = notice.node_id();
+        let mut contact = self.store.load(node_id).ok_or(IdentError::UnknownContact)?;
+        contact.trust = Trust::Blocked;
+        self.store.save(contact)
     }
 
     /// Set the trust level of an existing contact.

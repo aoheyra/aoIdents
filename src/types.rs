@@ -352,6 +352,16 @@ pub enum IdentError {
     /// The transport was requested before the handshake finished
     /// (IDN-13).
     HandshakeNotComplete,
+    /// A rotation statement encoding that is truncated, over-long or
+    /// has an unknown suite byte (IDN-16).
+    MalformedRotation,
+    /// A rotation that designates the same key pair on both sides:
+    /// applying it would erase the contact instead of migrating it
+    /// (IDN-16).
+    InvalidRotation,
+    /// A revocation notice encoding that is truncated, over-long or
+    /// has an unknown suite byte (IDN-16).
+    MalformedRevocation,
 }
 
 impl fmt::Display for IdentError {
@@ -447,6 +457,15 @@ impl fmt::Display for IdentError {
                 f.write_str("handshake static key does not match the neighbour's IdentityCard")
             }
             IdentError::HandshakeNotComplete => f.write_str("hop handshake has not finished"),
+            IdentError::MalformedRotation => {
+                f.write_str("rotation statement encoding is malformed or truncated")
+            }
+            IdentError::InvalidRotation => {
+                f.write_str("rotation must designate a different identity on each side")
+            }
+            IdentError::MalformedRevocation => {
+                f.write_str("revocation notice encoding is malformed or truncated")
+            }
         }
     }
 }

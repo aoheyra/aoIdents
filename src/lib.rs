@@ -3,8 +3,8 @@
 //! `ao_idents` owns who a node *is*, how contacts are trusted, and how
 //! messages are signed, sealed and replay-checked: node keys, `NodeId`,
 //! identity cards, contextual signatures, sealed messages, rotating tags,
-//! passphrase-encrypted backups, contact-book logic, the replay guard and
-//! the optional hop handshake.
+//! passphrase-encrypted backups, contact-book logic, key rotation and
+//! revocation, the replay guard and the optional hop handshake.
 //!
 //! # Boundaries
 //!
@@ -34,6 +34,7 @@ mod identity;
 mod keystore;
 mod multi_seal;
 mod replay;
+mod rotation;
 mod seal;
 mod sign;
 mod tag;
@@ -57,6 +58,7 @@ pub use replay::{
     MAX_ENTRIES as MAX_REPLAY_ENTRIES, MAX_SENDERS, MAX_TOLERANCE_MS, MAX_WINDOW, ReplayConfig,
     ReplayGuard,
 };
+pub use rotation::{RevocationNotice, RotationStatement};
 pub use seal::{MSG_ID_LEN, OpenedMessage, SealedMessage};
 pub use tag::{EPOCH_MAX_MS, EPOCH_MIN_MS, RotatingTag};
 pub use types::{IdentError, NodeId, PublicIdentity, SecretIdentity, Signature, SuiteId};
