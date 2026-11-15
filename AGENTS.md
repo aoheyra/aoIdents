@@ -2,7 +2,7 @@
 
 Read this fully before changing anything. Where this file and an issue disagree on *process*, this file wins; on *scope*, the issue wins.
 
-`aoIdents` (package `ao_idents`) is **identity, trust and cryptography** for the aoheyra mesh: node keys, `NodeId`, identity cards, signatures, sealed messages, prekey bundles and X3DH initial agreement, rotating tags, contact-book logic, key backup, key rotation and revocation, replay guard, and the optional hop handshake. It is pure Rust: **no networking, no I/O, no FFI**.
+`aoIdents` (package `ao_idents`) is **identity, trust and cryptography** for the aoheyra mesh: node keys, `NodeId`, identity cards, signatures, sealed messages, prekey bundles and X3DH initial agreement, sender-key group encryption, rotating tags, contact-book logic, key backup, key rotation and revocation, replay guard, and the optional hop handshake. It is pure Rust: **no networking, no I/O, no FFI**.
 
 This is the most security-critical crate. The rules below are stricter than elsewhere.
 

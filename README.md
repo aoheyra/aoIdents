@@ -2,7 +2,7 @@
 
 **Identity, trust and cryptography for the aoheyra mesh.** A pure-Rust, sans-IO crate: no networking, no I/O, no FFI. It owns who a node *is*, how contacts are trusted, and how messages are signed, sealed and replay-checked.
 
-> **Status: pre-alpha.** IDN-00 (scaffold, package naming, MSRV, CI with cargo-audit), IDN-01 (crypto-suite ADR), IDN-02 (core types and errors), IDN-03 (identity generation and derivation), IDN-04 (context-separated sign/verify), IDN-05 (key store trait), IDN-06 (passphrase-encrypted backup), IDN-07 (identity card and QR string), IDN-08 (contact book logic), IDN-09 (sealed message v1), IDN-10 (multi-recipient sealed message), IDN-11 (signed public blobs), IDN-12 (rotating tag generator), IDN-13 (Noise XX hop handshake), IDN-14 (replay guard), IDN-15 (prekey bundles and X3DH initial agreement), IDN-16 (key rotation and revocation), IDN-18 (known-answer vectors, property-test and audit gating, constant-time checklist), IDN-19 (threat model) and IDN-20 (handle ADR) are implemented; everything below is design from the backlog (`IDN-xx` issues) and is not implemented until its issue is closed.
+> **Status: pre-alpha.** IDN-00 (scaffold, package naming, MSRV, CI with cargo-audit), IDN-01 (crypto-suite ADR), IDN-02 (core types and errors), IDN-03 (identity generation and derivation), IDN-04 (context-separated sign/verify), IDN-05 (key store trait), IDN-06 (passphrase-encrypted backup), IDN-07 (identity card and QR string), IDN-08 (contact book logic), IDN-09 (sealed message v1), IDN-10 (multi-recipient sealed message), IDN-11 (signed public blobs), IDN-12 (rotating tag generator), IDN-13 (Noise XX hop handshake), IDN-14 (replay guard), IDN-15 (prekey bundles and X3DH initial agreement), IDN-16 (key rotation and revocation), IDN-17 (sender-key group encryption), IDN-18 (known-answer vectors, property-test and audit gating, constant-time checklist), IDN-19 (threat model) and IDN-20 (handle ADR) are implemented; every issue in the `IDN-xx` backlog is covered.
 
 Cargo package name: `ao_idents`.
 
@@ -41,7 +41,7 @@ aoMesh treats `NodeId` as an opaque type and calls aoIdents for signing, sealing
 | **Hop handshake** | Sans-IO Noise XX state machine authenticating neighbours against their `IdentityCard` | IDN-13 |
 | **Key rotation** | Rotation statements signed by the old key and counter-signed by the successor; self-signed revocations; the contact book follows a valid rotation and blocks a revoked key | IDN-16 |
 | **Prekeys and X3DH** | Signed rotating prekey bundles published through announcements; X3DH initial agreement; one-time prekeys deleted on use, so a message survives long-term key compromise after prekey deletion | IDN-15 |
-| **Later** | Group keys | IDN-17 |
+| **Group keys** | Sender-key chains for channels: each member distributes one sealed chain, messages are a single AEAD under a ratcheting counter, late delivery within a bounded window still opens, membership changes are signed statements, and member removal rotates the chain so the removed member cannot read new messages | IDN-17 |
 
 ## Crypto suite (fixed by the ADR, IDN-01)
 

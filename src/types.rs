@@ -375,6 +375,26 @@ pub enum IdentError {
     /// The prekey a message was sealed to is unknown, already
     /// consumed, or deleted with the signed prekey (IDN-15).
     PrekeyUnavailable,
+    /// A group message, sender-key distribution or membership
+    /// statement whose encoding is truncated, over-long or has a
+    /// field this suite version does not define (IDN-17).
+    MalformedGroup,
+    /// A group message or distribution addressed to a different
+    /// channel (IDN-17).
+    WrongGroup,
+    /// No sender key is installed for this sender in this channel
+    /// (IDN-17).
+    UnknownSender,
+    /// A group message counter at or behind the sender chain's
+    /// position: a replay, or a message from before the chain was
+    /// installed (IDN-17).
+    CounterTooOld,
+    /// A group message counter over [`crate::MAX_COUNTER_JUMP`]
+    /// ahead of the sender chain's position (IDN-17).
+    CounterTooFarAhead,
+    /// A channel already holds [`crate::MAX_SENDERS_PER_GROUP`]
+    /// senders (IDN-17).
+    TooManySenders,
 }
 
 impl fmt::Display for IdentError {
@@ -490,6 +510,18 @@ impl fmt::Display for IdentError {
             }
             IdentError::PrekeyUnavailable => {
                 f.write_str("the prekey this message was sealed to is deleted or unknown")
+            }
+            IdentError::MalformedGroup => f.write_str("group encoding is malformed or truncated"),
+            IdentError::WrongGroup => f.write_str("the group id does not match this channel"),
+            IdentError::UnknownSender => f.write_str("no sender key is installed for this sender"),
+            IdentError::CounterTooOld => {
+                f.write_str("the message counter is behind the sender chain")
+            }
+            IdentError::CounterTooFarAhead => {
+                f.write_str("the message counter is too far ahead of the sender chain")
+            }
+            IdentError::TooManySenders => {
+                f.write_str("the channel already holds the maximum number of senders")
             }
         }
     }

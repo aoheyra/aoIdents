@@ -29,6 +29,7 @@ mod backup;
 mod blob;
 mod card;
 mod contact;
+mod group;
 mod handshake;
 mod identity;
 mod keystore;
@@ -47,6 +48,10 @@ pub use card::IdentityCard;
 pub use contact::{
     Contact, ContactBook, ContactStore, ContactUpdate, MAX_CONTACTS, MAX_PETNAME_BYTES,
     MemoryContactStore, Trust, safety_number,
+};
+pub use group::{
+    GroupId, GroupMessage, GroupReceiver, MAX_COUNTER_JUMP, MAX_SENDERS_PER_GROUP,
+    MembershipAction, MembershipChange, SenderChain, SenderKeyDistribution,
 };
 pub use handshake::{HopHandshake, HopTransport};
 pub use identity::Identity;
