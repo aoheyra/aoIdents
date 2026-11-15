@@ -33,6 +33,7 @@ mod handshake;
 mod identity;
 mod keystore;
 mod multi_seal;
+mod prekey;
 mod replay;
 mod rotation;
 mod seal;
@@ -54,6 +55,7 @@ pub use keystore::{
     validate_key_id,
 };
 pub use multi_seal::{MAX_RECIPIENTS, MultiSealedMessage, RECIPIENT_WRAP_LEN};
+pub use prekey::{MAX_ONE_TIME_PREKEYS, PrekeyBundle, PrekeySealedMessage, PrekeySecrets};
 pub use replay::{
     MAX_ENTRIES as MAX_REPLAY_ENTRIES, MAX_SENDERS, MAX_TOLERANCE_MS, MAX_WINDOW, ReplayConfig,
     ReplayGuard,

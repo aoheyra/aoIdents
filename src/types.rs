@@ -362,6 +362,19 @@ pub enum IdentError {
     /// A revocation notice encoding that is truncated, over-long or
     /// has an unknown suite byte (IDN-16).
     MalformedRevocation,
+    /// A prekey bundle encoding that is truncated, over-long or whose
+    /// length disagrees with its count byte (IDN-15).
+    MalformedPrekeyBundle,
+    /// A prekey bundle's one-time count outside `1..=16`, refused at
+    /// generation and before any key list is allocated on decode
+    /// (IDN-15).
+    InvalidPrekeyCount,
+    /// A prekey message encoding that is truncated, over-long or has
+    /// a ciphertext shorter than the inner framing (IDN-15).
+    MalformedPrekeyMessage,
+    /// The prekey a message was sealed to is unknown, already
+    /// consumed, or deleted with the signed prekey (IDN-15).
+    PrekeyUnavailable,
 }
 
 impl fmt::Display for IdentError {
@@ -465,6 +478,18 @@ impl fmt::Display for IdentError {
             }
             IdentError::MalformedRevocation => {
                 f.write_str("revocation notice encoding is malformed or truncated")
+            }
+            IdentError::MalformedPrekeyBundle => {
+                f.write_str("prekey bundle encoding is malformed or truncated")
+            }
+            IdentError::InvalidPrekeyCount => {
+                f.write_str("one-time prekey count is outside the supported range")
+            }
+            IdentError::MalformedPrekeyMessage => {
+                f.write_str("prekey message encoding is malformed or truncated")
+            }
+            IdentError::PrekeyUnavailable => {
+                f.write_str("the prekey this message was sealed to is deleted or unknown")
             }
         }
     }
