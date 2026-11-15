@@ -3,7 +3,8 @@
 //! `ao_idents` owns who a node *is*, how contacts are trusted, and how
 //! messages are signed, sealed and replay-checked: node keys, `NodeId`,
 //! identity cards, contextual signatures, sealed messages, rotating tags,
-//! contact-book logic, the replay guard and the optional hop handshake.
+//! passphrase-encrypted backups, contact-book logic, the replay guard and
+//! the optional hop handshake.
 //!
 //! # Boundaries
 //!
@@ -24,6 +25,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod backup;
 mod blob;
 mod card;
 mod contact;
@@ -36,6 +38,7 @@ mod sign;
 mod tag;
 mod types;
 
+pub use backup::{BackupBlob, export_backup, import_backup};
 pub use blob::SignedBlob;
 pub use card::IdentityCard;
 pub use contact::{

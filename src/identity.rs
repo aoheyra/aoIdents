@@ -13,7 +13,7 @@ use hkdf::Hkdf;
 use rand_core::RngCore;
 use sha2::Sha256;
 use x25519_dalek::{PublicKey as AgreementPublicKey, StaticSecret};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::types::{NodeId, PublicIdentity, SecretIdentity, Signature, SuiteId};
 
@@ -33,7 +33,9 @@ const INFO_SIGNING: &str = "aoheyra/idn/v1/derive/signing";
 const INFO_AGREEMENT: &str = "aoheyra/idn/v1/derive/agreement";
 
 /// One identity: the public half (shareable), the secret half (zeroized),
-/// and the derived `NodeId`.
+/// and the derived `NodeId`. The seed is retained (zeroized on drop) so
+/// the identity can be exported as a passphrase-encrypted backup
+/// (IDN-06); `Debug` never prints it.
 ///
 /// `Debug` prints the public parts and a redacted secret.
 pub struct Identity {
@@ -41,6 +43,7 @@ pub struct Identity {
     public: PublicIdentity,
     secret: SecretIdentity,
     node_id: NodeId,
+    seed: Zeroizing<[u8; 32]>,
 }
 
 impl fmt::Debug for Identity {
@@ -88,7 +91,9 @@ impl Identity {
         let public = PublicIdentity::new(signing_pk, agreement_pk, binding);
         let secret = SecretIdentity::from_parts(signing_sk, agreement_sk);
 
-        // Local copies of key material never outlive this function.
+        // Local copies of key material never outlive this function;
+        // the retained copy below is zeroized when the `Identity` drops.
+        let retained = Zeroizing::new(seed);
         signing_sk.zeroize();
         agreement_sk.zeroize();
         seed.zeroize();
@@ -98,6 +103,7 @@ impl Identity {
             public,
             secret,
             node_id,
+            seed: retained,
         }
     }
 
@@ -123,6 +129,12 @@ impl Identity {
     /// The secret half, for signing inside this crate (IDN-04).
     pub(crate) fn secret(&self) -> &SecretIdentity {
         &self.secret
+    }
+
+    /// The retained seed, for the passphrase-encrypted backup
+    /// (IDN-06). Crate-internal: seeds are never handed out.
+    pub(crate) fn seed(&self) -> &[u8; 32] {
+        &self.seed
     }
 }
 

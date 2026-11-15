@@ -323,6 +323,23 @@ pub enum IdentError {
     /// The same recipient listed twice in one multi-recipient seal,
     /// identified by the duplicated `NodeId` (IDN-10).
     DuplicateRecipient(NodeId),
+    /// A backup export with an empty passphrase, refused so a backup
+    /// can never be encrypted under a guessable key (IDN-06).
+    EmptyPassphrase,
+    /// A backup that did not open: wrong passphrase or a tampered
+    /// blob (IDN-06).
+    InvalidPassphrase,
+    /// A backup encoding that is truncated, over-long or of an
+    /// unknown version (IDN-06).
+    MalformedBackup,
+    /// A backup's stored Argon2id parameters outside the supported
+    /// bounds, refused before any allocation or hashing so a hostile
+    /// file cannot drive the KDF (IDN-06).
+    InvalidBackupParams,
+    /// A backup whose decrypted seed does not derive the `NodeId`
+    /// recorded in its header: the backup claims an identity its
+    /// seed does not produce (IDN-06).
+    IdentityMismatch(NodeId),
 }
 
 impl fmt::Display for IdentError {
@@ -398,6 +415,20 @@ impl fmt::Display for IdentError {
             }
             IdentError::DuplicateRecipient(node_id) => {
                 write!(f, "recipient {node_id} is listed more than once")
+            }
+            IdentError::EmptyPassphrase => f.write_str("backup passphrase must not be empty"),
+            IdentError::InvalidPassphrase => f.write_str("wrong passphrase or corrupted backup"),
+            IdentError::MalformedBackup => {
+                f.write_str("backup encoding is malformed, truncated or of unknown version")
+            }
+            IdentError::InvalidBackupParams => {
+                f.write_str("backup Argon2id parameters are outside the supported bounds")
+            }
+            IdentError::IdentityMismatch(node_id) => {
+                write!(
+                    f,
+                    "backup seed does not derive the recorded NodeId {node_id}"
+                )
             }
         }
     }

@@ -22,6 +22,12 @@ sha2 = "0.10"
 subtle = "2.6"
 x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
 zeroize = "1.8"
+# Argon2id for the passphrase-encrypted backup (IDN-06); RustCrypto,
+# MIT OR Apache-2.0. 0.5.x, not 0.6: 0.6 pulls blake2 -> digest ->
+# ctutils, whose constant-time fix needs Rust 1.87 (above this
+# crate's MSRV) and so fails cargo-deny's advisory gate. `zeroize`
+# wipes the internal state; no PHC-string or getrandom features.
+argon2 = { version = "0.5", default-features = false, features = ["alloc", "zeroize"] }
 
 [dev-dependencies]
 proptest = "1"
