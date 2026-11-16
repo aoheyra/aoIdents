@@ -34,7 +34,7 @@ Both public keys are hashed: a `NodeId` can never be reinterpreted under differe
 
 ## Domain separation
 
-Exactly one string from the namespace `aoheyra/idn/v1/...` (ASCII, no NUL) per signature or KDF use. Signature preimage is `u8 domain_len ‖ domain ‖ msg`, so no domain can be confused with a message prefix. Strings are versioned (`v1`): a suite change bumps the namespace instead of editing strings in place. **New uses must add a row here first** — this table is the registry.
+Exactly one string per signature, KDF or hash use (ASCII, no NUL), in the owning area's versioned namespace: identity uses `aoheyra/idn/v1/...`, the mesh engine `aoheyra/mesh/v1/...`. Signature preimage is `u8 domain_len ‖ domain ‖ msg`, so no domain can be confused with a message prefix. Strings are versioned (`v1`): a suite change bumps the namespace instead of editing strings in place. **New uses — in any aoheyra crate — must add a row here first**; this table is the registry.
 
 | Domain string | Kind | Used by |
 |---|---|---|
@@ -59,6 +59,8 @@ Exactly one string from the namespace `aoheyra/idn/v1/...` (ASCII, no NUL) per s
 | `aoheyra/idn/v1/group-sender` | HKDF info | sender key for channels (IDN-17) |
 | `aoheyra/idn/v1/safety-number` | BLAKE3 input | out-of-band comparison (IDN-08) |
 | `aoheyra/idn/v1/handle` | BLAKE3 input | handle number derivation (IDN-20) |
+| `aoheyra/mesh/v1/packet` | signature | origin signature over the immutable packet header (MSH-04) |
+| `aoheyra/mesh/v1/msg-id` | BLAKE3 input | `msg_id` derivation from immutable header and payload hash (MSH-04) |
 
 ## Canonical encoding
 
