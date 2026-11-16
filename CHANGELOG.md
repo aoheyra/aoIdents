@@ -16,4 +16,8 @@ handshake, prekeys and X3DH initial agreement, key rotation and
 revocation, sender-key group encryption, known-answer vectors and
 property tests, and the threat model.
 
+Added for aoMesh's `MeshHello` (MSH-07): `compute_node_id` and
+`verify_signing_pk` are public raw-key seams, and
+`aoheyra/mesh/v1/hello` is registered in the ADR-0001 domain table.
+
 Breaking API changes are listed here once a tag exists.

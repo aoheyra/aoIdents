@@ -52,8 +52,9 @@ impl PublicIdentity {
 
 /// Strict Ed25519 verification against a bare signing public key: the
 /// same rules as [`PublicIdentity::verify`], for structures that carry
-/// only a signing key (the identity card, IDN-07).
-pub(crate) fn verify_signing_pk(
+/// only a signing key (the identity card, IDN-07; aoMesh's `MeshHello`,
+/// MSH-07).
+pub fn verify_signing_pk(
     signing_pk: &[u8; 32],
     ctx: &str,
     msg: &[u8],

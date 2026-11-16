@@ -7,7 +7,7 @@
 
 mod common;
 
-use ao_idents::{IdentError, Identity, PublicIdentity, Signature};
+use ao_idents::{IdentError, Identity, PublicIdentity, Signature, verify_signing_pk};
 use common::TestRng;
 use proptest::prelude::*;
 use proptest::test_runner::FileFailurePersistence;
@@ -123,6 +123,57 @@ fn signature_under_one_context_never_verifies_under_another() {
         id.public().verify(OTHER_CTX, b"payload", &sig),
         Err(IdentError::InvalidSignature),
         "a msg-domain signature must not verify as a blob-domain signature"
+    );
+}
+
+/// ADR-0001 registry row added for aoMesh's MeshHello (MSH-07): the
+/// string is pinned here so a signature under it stays in its own
+/// context, on both verification paths.
+const HELLO_CTX: &str = "aoheyra/mesh/v1/hello";
+
+#[test]
+fn hello_context_verifies_only_under_itself() {
+    let id = identity(6);
+    let msg = b"mesh hello bytes";
+    let sig = id.sign(HELLO_CTX, msg).expect("registered domain");
+
+    // The bare-key seam accepts it under its own context with the same
+    // rules as the PublicIdentity method...
+    assert_eq!(
+        verify_signing_pk(id.public().signing_pk(), HELLO_CTX, msg, &sig),
+        Ok(()),
+        "the bare-key verifier must accept its own context"
+    );
+    assert!(id.public().verify(HELLO_CTX, msg, &sig).is_ok());
+
+    // ...and every other registered context rejects it.
+    for other in [
+        CTX,
+        OTHER_CTX,
+        BIND_CTX,
+        "aoheyra/mesh/v1/packet",
+        "aoheyra/mesh/v1/msg-id",
+    ] {
+        assert_eq!(
+            id.public().verify(other, msg, &sig),
+            Err(IdentError::InvalidSignature),
+            "must not verify under {other}"
+        );
+        assert_eq!(
+            verify_signing_pk(id.public().signing_pk(), other, msg, &sig),
+            Err(IdentError::InvalidSignature),
+            "bare-key verify must not accept {other}"
+        );
+    }
+
+    // The other direction: a packet-context signature is not a hello.
+    let packet_sig = id
+        .sign("aoheyra/mesh/v1/packet", msg)
+        .expect("registered domain");
+    assert_eq!(
+        verify_signing_pk(id.public().signing_pk(), HELLO_CTX, msg, &packet_sig),
+        Err(IdentError::InvalidSignature),
+        "a packet-context signature must not verify as a hello"
     );
 }
 
