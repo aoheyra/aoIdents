@@ -54,7 +54,7 @@ pub use group::{
     MembershipAction, MembershipChange, SenderChain, SenderKeyDistribution,
 };
 pub use handshake::{HopHandshake, HopTransport};
-pub use identity::Identity;
+pub use identity::{Identity, compute_node_id};
 pub use keystore::{
     KeyStore, MAX_BLOB_BYTES, MAX_ENTRIES, MAX_KEY_ID_BYTES, MemoryKeyStore, SealedBlob,
     validate_key_id,
@@ -67,5 +67,6 @@ pub use replay::{
 };
 pub use rotation::{RevocationNotice, RotationStatement};
 pub use seal::{MSG_ID_LEN, OpenedMessage, SealedMessage};
+pub use sign::verify_signing_pk;
 pub use tag::{EPOCH_MAX_MS, EPOCH_MIN_MS, RotatingTag};
 pub use types::{IdentError, NodeId, PublicIdentity, SecretIdentity, Signature, SuiteId};

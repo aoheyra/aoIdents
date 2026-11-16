@@ -92,6 +92,11 @@ let opened = sealed.open(&bob, &msg_id)?;         // plaintext + authenticated s
 
 let sig = alice.sign("aoheyra/idn/v1/example", &bytes)?;
 alice.public().verify("aoheyra/idn/v1/example", &bytes, &sig)?;
+
+// Raw-key seams for structures that carry only a signing key and two
+// public keys (aoMesh's MeshHello, MSH-07):
+let node_id = compute_node_id(signing_pk, agreement_pk); // == Identity::node_id()
+verify_signing_pk(signing_pk, ctx, bytes, &sig)?;         // same rules as PublicIdentity::verify
 ```
 
 `open` fails for tampering with any field, for the wrong recipient, and (with `ReplayGuard`) for replays.

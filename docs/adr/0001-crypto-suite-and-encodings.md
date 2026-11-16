@@ -61,6 +61,7 @@ Exactly one string per signature, KDF or hash use (ASCII, no NUL), in the owning
 | `aoheyra/idn/v1/handle` | BLAKE3 input | handle number derivation (IDN-20) |
 | `aoheyra/mesh/v1/packet` | signature | origin signature over the immutable packet header (MSH-04) |
 | `aoheyra/mesh/v1/msg-id` | BLAKE3 input | `msg_id` derivation from immutable header and payload hash (MSH-04) |
+| `aoheyra/mesh/v1/hello` | signature | `MeshHello` signature verified on link-up (MSH-07) |
 
 ## Canonical encoding
 

@@ -10,7 +10,7 @@
 
 mod common;
 
-use ao_idents::{Identity, PublicIdentity, SuiteId};
+use ao_idents::{Identity, PublicIdentity, SuiteId, compute_node_id};
 use common::TestRng;
 use ed25519_dalek::{Signature as DalekSignature, VerifyingKey};
 use proptest::prelude::*;
@@ -183,6 +183,28 @@ fn node_id_hashes_both_public_keys() {
         "a NodeId must not be reinterpretable under different key material"
     );
     assert_ne!(a.node_id(), b.node_id());
+}
+
+#[test]
+fn public_compute_node_id_matches_identity_node_id() {
+    // The raw-key seam (MSH-07) must agree bit-for-bit with the
+    // identity's own NodeId, however the identity was generated.
+    for seed_byte in [0u8, 1, 0x42, 0xFF] {
+        let id = Identity::from_seed([seed_byte; 32]);
+        assert_eq!(
+            compute_node_id(id.public().signing_pk(), id.public().agreement_pk()),
+            id.node_id(),
+            "from_seed identity {seed_byte:#04x}"
+        );
+    }
+    for state in 0..8u64 {
+        let id = Identity::generate(&mut TestRng::new(state));
+        assert_eq!(
+            compute_node_id(id.public().signing_pk(), id.public().agreement_pk()),
+            id.node_id(),
+            "generated identity {state}"
+        );
+    }
 }
 
 #[test]
