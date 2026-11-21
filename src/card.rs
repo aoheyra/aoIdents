@@ -6,6 +6,8 @@
 //! `aoheyra:id:<base32>` with a checksum, small enough for one QR
 //! code, and a short hash of the card identifies it in announcements.
 
+use subtle::ConstantTimeEq;
+
 use crate::Identity;
 use crate::identity::preimage;
 use crate::sign::verify_signing_pk;
@@ -195,6 +197,26 @@ impl IdentityCard {
         let mut out = [0u8; 8];
         out.copy_from_slice(&hash[..8]);
         out
+    }
+
+    /// Verify this card against a hash learned before the link was
+    /// opened (IDN-14 host integration seam).
+    ///
+    /// aoMesh carries only the 8-byte [`Self::announcement_hash`] from
+    /// `MeshHello`; the host supplies the full card out of band. This
+    /// checks the card's self-signature *and* that its announcement
+    /// hash is exactly `expected_hash`. A pin against a different
+    /// card, including one with a forged or substituted key, is
+    /// [`IdentError::CardHashMismatch`] or a signature error. The
+    /// comparison is constant-time even though the hash is public:
+    /// pinning is a trust decision and must not leak which field
+    /// differed.
+    pub fn verify_pinned_by_hash(&self, expected_hash: &[u8; 8]) -> Result<(), IdentError> {
+        self.verify()?;
+        if !bool::from(self.announcement_hash().ct_eq(expected_hash)) {
+            return Err(IdentError::CardHashMismatch);
+        }
+        Ok(())
     }
 
     /// The suite this card was signed under (always v1 today).

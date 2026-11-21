@@ -352,6 +352,21 @@ pub enum IdentError {
     /// The transport was requested before the handshake finished
     /// (IDN-13).
     HandshakeNotComplete,
+    /// The 8-byte card announcement hash supplied by the host does not
+    /// match the full card supplied out of band (IDN-14).
+    CardHashMismatch,
+    /// No hop session is installed for this link; the host has not
+    /// completed a handshake with this neighbour (IDN-14).
+    NoHopSession(NodeId),
+    /// The hop session for this link was closed. Late Data frames are
+    /// refused as closed, never silently opened under a stale key
+    /// (IDN-14).
+    HopSessionClosed(NodeId),
+    /// The bounded host-side hop session table is full (IDN-14).
+    HopSessionTableFull,
+    /// A hop Data frame is malformed, tampered, or was sealed under a
+    /// different session or direction (IDN-14).
+    HopFrameInvalid,
     /// A rotation statement encoding that is truncated, over-long or
     /// has an unknown suite byte (IDN-16).
     MalformedRotation,
@@ -490,6 +505,21 @@ impl fmt::Display for IdentError {
                 f.write_str("handshake static key does not match the neighbour's IdentityCard")
             }
             IdentError::HandshakeNotComplete => f.write_str("hop handshake has not finished"),
+            IdentError::CardHashMismatch => {
+                f.write_str("identity card hash does not match the pinned announcement hash")
+            }
+            IdentError::NoHopSession(peer) => {
+                write!(f, "no hop session is installed for neighbour {peer}")
+            }
+            IdentError::HopSessionClosed(peer) => {
+                write!(f, "hop session for neighbour {peer} is closed")
+            }
+            IdentError::HopSessionTableFull => {
+                f.write_str("the host-side hop session table is full")
+            }
+            IdentError::HopFrameInvalid => {
+                f.write_str("hop Data frame is malformed, tampered or from another session")
+            }
             IdentError::MalformedRotation => {
                 f.write_str("rotation statement encoding is malformed or truncated")
             }

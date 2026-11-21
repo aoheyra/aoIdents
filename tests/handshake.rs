@@ -8,8 +8,12 @@
 
 mod common;
 
-use ao_idents::{HopHandshake, IdentError, Identity, IdentityCard};
+use ao_idents::{
+    HopHandshake, HopSessions, HopTransport, IdentError, Identity, IdentityCard, MAX_HOP_SESSIONS,
+    NodeId, RngAdapter,
+};
 use common::TestRng;
+use rand_core09::RngCore as RngCore09;
 
 fn identity(state: u64) -> Identity {
     Identity::generate(&mut TestRng::new(state))
@@ -380,6 +384,269 @@ fn debug_shows_progress_without_key_material() {
         "shows progress: {printed}"
     );
     assert!(!printed.contains("0x"), "no key bytes: {printed}");
+}
+
+/// IDN-14: a card that does not match the 8-byte hash carried by the
+/// mesh is refused on both sides, before any handshake bytes move.
+#[test]
+fn card_hash_mismatch_is_rejected() {
+    let alice = identity(1);
+    let bob = identity(2);
+    let bob_card = card(&bob, b"bob");
+
+    let mut wrong_hash = bob_card.announcement_hash();
+    wrong_hash[0] ^= 0x01;
+
+    let err = HopHandshake::initiator_pinned_by_hash(
+        &alice,
+        &wrong_hash,
+        &bob_card,
+        &mut TestRng::new(10),
+    )
+    .expect_err("wrong pin must be rejected");
+    assert!(
+        matches!(err, IdentError::CardHashMismatch),
+        "wrong error: {err}"
+    );
+
+    let err =
+        HopHandshake::responder_pinned_by_hash(&bob, &wrong_hash, &bob_card, &mut TestRng::new(11))
+            .expect_err("responder must reject it too");
+    assert!(
+        matches!(err, IdentError::CardHashMismatch),
+        "wrong error: {err}"
+    );
+}
+
+/// IDN-14: the full-card and hash-pinned paths are the same handshake.
+/// With the same local identities and seeds the Control bytes match,
+/// and either side's finished transport opens the other side's frame.
+#[test]
+fn full_card_and_hash_pinned_paths_agree() {
+    let alice = identity(1);
+    let bob = identity(2);
+    let alice_card = card(&alice, b"alice");
+    let bob_card = card(&bob, b"bob");
+    let bob_hash = bob_card.announcement_hash();
+    let alice_hash = alice_card.announcement_hash();
+
+    bob_card
+        .verify_pinned_by_hash(&bob_hash)
+        .expect("the genuine card matches its hash");
+
+    let mut full_init =
+        HopHandshake::initiator(&alice, &bob_card, &mut TestRng::new(10)).expect("builds");
+    let mut full_resp =
+        HopHandshake::responder(&bob, &alice_card, &mut TestRng::new(11)).expect("builds");
+    let mut pinned_init =
+        HopHandshake::initiator_pinned_by_hash(&alice, &bob_hash, &bob_card, &mut TestRng::new(10))
+            .expect("builds");
+    let mut pinned_resp = HopHandshake::responder_pinned_by_hash(
+        &bob,
+        &alice_hash,
+        &alice_card,
+        &mut TestRng::new(11),
+    )
+    .expect("builds");
+
+    let full_msgs = drive(&mut full_init, &mut full_resp);
+    let pinned_msgs = drive(&mut pinned_init, &mut pinned_resp);
+    assert_eq!(full_msgs, pinned_msgs, "same wire bytes, both paths");
+
+    let mut full_to_pinned = full_init.into_transport().expect("genuine card");
+    let mut pinned_to_full = pinned_resp.into_transport().expect("genuine card");
+    let frame = full_to_pinned
+        .encrypt_msg(b"opaque data frame")
+        .expect("seals");
+    assert_eq!(
+        pinned_to_full.decrypt_msg(&frame).expect("opens"),
+        b"opaque data frame"
+    );
+}
+
+/// A real `rand_core` 0.9 generator, the trait line aoMesh injects.
+/// splitmix64 is deterministic test scaffolding, never production
+/// entropy (the same stream as `common::TestRng` on 0.6).
+struct HostRng09(u64);
+
+impl RngCore09 for HostRng09 {
+    fn next_u32(&mut self) -> u32 {
+        self.next_u64() as u32
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        for chunk in dest.chunks_mut(8) {
+            let bytes = self.next_u64().to_le_bytes();
+            chunk.copy_from_slice(&bytes[..chunk.len()]);
+        }
+    }
+}
+
+/// IDN-14: the closure adapter takes a 0.9 RNG with no second runtime
+/// dependency in the library. The same seed gives the same bytes, both
+/// run to run and across the 0.6 / 0.9 trait lines.
+#[test]
+fn rng_adapter_accepts_a_0_9_generator_deterministically() {
+    let alice = identity(1);
+    let bob = identity(2);
+    let bob_card = card(&bob, b"bob");
+
+    let via_adapter = || {
+        let mut host_rng = HostRng09(42);
+        let mut bridge = RngAdapter::new(|dest: &mut [u8]| host_rng.fill_bytes(dest));
+        let mut initiator =
+            HopHandshake::initiator(&alice, &bob_card, &mut bridge).expect("builds");
+        initiator.write_message().expect("msg1")
+    };
+
+    assert_eq!(via_adapter(), via_adapter(), "same 0.9 seed, same bytes");
+
+    let mut legacy_rng = TestRng::new(42);
+    let mut legacy = HopHandshake::initiator(&alice, &bob_card, &mut legacy_rng).expect("builds");
+    assert_eq!(
+        via_adapter(),
+        legacy.write_message().expect("msg1"),
+        "0.9 adapter and 0.6 blanket implementation agree"
+    );
+}
+
+/// Two complete transports for the host-side session tests.
+fn transport_pair() -> (HopTransport, HopTransport) {
+    let alice = identity(1);
+    let bob = identity(2);
+    let alice_card = card(&alice, b"alice");
+    let bob_card = card(&bob, b"bob");
+
+    let mut initiator =
+        HopHandshake::initiator(&alice, &bob_card, &mut TestRng::new(10)).expect("builds");
+    let mut responder =
+        HopHandshake::responder(&bob, &alice_card, &mut TestRng::new(11)).expect("builds");
+    drive(&mut initiator, &mut responder);
+    (
+        initiator.into_transport().expect("genuine card"),
+        responder.into_transport().expect("genuine card"),
+    )
+}
+
+/// IDN-14: the host installs one transport per neighbour and seals /
+/// opens opaque Data frames through the table. aoMesh never sees a key.
+#[test]
+fn host_session_table_seals_and_opens_data_frames() {
+    let alice_id = identity(1).node_id();
+    let bob_id = identity(2).node_id();
+    let (alice_side, bob_side) = transport_pair();
+
+    let mut alice_sessions = HopSessions::new();
+    let mut bob_sessions = HopSessions::new();
+    alice_sessions
+        .install(bob_id, alice_side)
+        .expect("installs first session");
+    bob_sessions
+        .install(alice_id, bob_side)
+        .expect("installs first session");
+
+    let first = b"entire opaque packet, header included";
+    let frame = alice_sessions.seal_frame(bob_id, first).expect("seals");
+    assert_ne!(&frame, first, "frame is ciphertext");
+    assert_eq!(
+        bob_sessions.open_frame(alice_id, &frame).expect("opens"),
+        first
+    );
+
+    let reply = bob_sessions.seal_frame(alice_id, b"reply").expect("seals");
+    assert_eq!(
+        alice_sessions.open_frame(bob_id, &reply).expect("opens"),
+        b"reply"
+    );
+}
+
+/// IDN-14: missing sessions, closed sessions and bad frames each get
+/// their own typed error, so the host can tell "never negotiated"
+/// from "link went down" from "hostile frame".
+#[test]
+fn missing_closed_and_bad_frames_are_typed_errors() {
+    let peer = identity(2).node_id();
+    let (transport, _other) = transport_pair();
+    let mut sessions = HopSessions::new();
+
+    assert!(matches!(
+        sessions.seal_frame(peer, b"data"),
+        Err(IdentError::NoHopSession(id)) if id == peer
+    ));
+    assert!(matches!(
+        sessions.open_frame(peer, b"frame"),
+        Err(IdentError::NoHopSession(id)) if id == peer
+    ));
+
+    sessions.install(peer, transport).expect("installs");
+    assert!(matches!(
+        sessions.open_frame(peer, &[0_u8; 16]),
+        Err(IdentError::HopFrameInvalid)
+    ));
+
+    let frame = sessions.seal_frame(peer, b"data").expect("seals");
+    let mut tampered = frame.clone();
+    tampered[0] ^= 0x01;
+    assert!(matches!(
+        sessions.open_frame(peer, &tampered),
+        Err(IdentError::HopFrameInvalid)
+    ));
+
+    sessions.close(peer).expect("closes");
+    assert!(matches!(
+        sessions.seal_frame(peer, b"data"),
+        Err(IdentError::HopSessionClosed(id)) if id == peer
+    ));
+    assert!(matches!(
+        sessions.open_frame(peer, &frame),
+        Err(IdentError::HopSessionClosed(id)) if id == peer
+    ));
+    sessions.close(peer).expect("closing twice is idempotent");
+    assert!(sessions.forget(peer), "frees the slot");
+    assert!(sessions.is_empty());
+}
+
+/// IDN-14: the session table is bounded and its Debug output never
+/// prints transport key material.
+#[test]
+fn session_table_is_bounded_and_debug_is_redacted() {
+    let mut sessions = HopSessions::new();
+    for i in 0..MAX_HOP_SESSIONS {
+        let (transport, _other) = transport_pair();
+        sessions
+            .install(NodeId::from_bytes([i as u8; 16]), transport)
+            .expect("within the bound");
+    }
+    assert_eq!(sessions.len(), MAX_HOP_SESSIONS);
+
+    let (_transport, _other) = transport_pair();
+    assert!(matches!(
+        sessions.install(NodeId::from_bytes([0xFF; 16]), _transport),
+        Err(IdentError::HopSessionTableFull)
+    ));
+
+    sessions
+        .close(NodeId::from_bytes([0; 16]))
+        .expect("marks one closed");
+    let printed = format!("{sessions:?}");
+    assert!(
+        printed.contains("HopSessions"),
+        "names the table: {printed}"
+    );
+    assert!(printed.contains("open"), "shows open links: {printed}");
+    assert!(printed.contains("closed"), "shows closed links: {printed}");
+    assert!(
+        !printed.contains("HopTransport"),
+        "never prints transports: {printed}"
+    );
 }
 
 mod proptests {

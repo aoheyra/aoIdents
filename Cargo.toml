@@ -40,6 +40,10 @@ snow = { version = "0.10", default-features = false, features = ["use-curve25519
 [dev-dependencies]
 criterion = "0.7.0"
 proptest = "1"
+# Dev-only compatibility check for the IDN-14 RNG seam: a real
+# rand_core 0.9 RngCore proves the closure adapter works for aoMesh.
+# The library keeps its single 0.6 runtime dependency.
+rand_core09 = { package = "rand_core", version = "0.9" }
 
 # Hot-path benches (README, Development). Criterion is the standard
 # measurement harness; dev-dependency only, never part of the library.
