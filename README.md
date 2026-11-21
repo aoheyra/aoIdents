@@ -139,11 +139,11 @@ local gate. Optional tooling, run only when explicitly asked:
 
 ```bash
 cargo bench              # criterion benches in benches/
-cargo fuzz run <target>  # fuzz targets in fuzz/ (nightly + cargo-fuzz)
+# Fuzz targets live in https://github.com/aoheyra/aoheyra-fuzz
 ```
 
-Fuzz targets run in CI every Sunday 00:00 IST for up to 60 minutes
-(`.github/workflows/fuzz.yml`). Callgrind profiling runs on manual
+Fuzz targets run every Sunday 00:00 IST for 90 minutes in
+[aoheyra-fuzz](https://github.com/aoheyra/aoheyra-fuzz). Callgrind profiling runs on manual
 dispatch (`.github/workflows/callgrind.yml`) and wraps a bench binary:
 
 ```bash
