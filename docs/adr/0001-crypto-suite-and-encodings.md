@@ -2,7 +2,7 @@
 
 - **Status:** accepted, pending sign-off by a reviewer other than the author (IDN-01 done-when)
 - **Date:** 2026-11-05
-- **Related:** IDN-02..IDN-17 implement this; IDN-06 (Argon2id) and IDN-13 (Noise) pin their own parameters; IDN-20 (handle) uses the derivation namespace
+- **Related:** IDN-02..IDN-17 implement this; IDN-06 (Argon2id) and IDN-13 (Noise) pin their own parameters; IDN-14 registers the hop Control/Data framing; IDN-20 (handle) uses the derivation namespace
 
 ## Decision
 
@@ -78,6 +78,18 @@ Rules:
 5. Signatures cover the encoded bytes exactly — never a re-encoding.
 
 The QR string (`aoheyra:id:<base32>`, IDN-07) and the aoNetwork/aoMesh wire formats are separate encodings, not governed here.
+
+## Hop Control and Data framing (IDN-14)
+
+IDN-14 defines only the bytes inside an aoMesh frame body; aoMesh owns the outer frame header and capability negotiation (MSH-26).
+
+| Field | Width | Rule |
+|---|---|---|
+| Control `kind` | 1 byte | `0x01` = Noise XX v1 handshake; unknown values are refused before crypto |
+| Control Noise message | 32 / 96 / 64 bytes | the three XX messages in order, empty payload; order is enforced by the Noise state machine, not by an extra index byte |
+| Data ciphertext | plaintext + 16 bytes | raw Noise transport output; no aoIdents header, 65535-byte hard cap |
+
+This is a demultiplexing tag and a message-size contract, not a signed or hashed structure: no new signature/KDF/hash domain string is registered. The suite is bound by the Noise protocol name and transcript; the card hash uses `aoheyra/idn/v1/card-hash` already in the table above. A new suite requires a new `kind` byte, an ADR update, a version bump and a compatibility note. The full ownership model, fallback rule and error contract are in [`docs/host-integration.md`](../host-integration.md).
 
 ## Secret handling
 

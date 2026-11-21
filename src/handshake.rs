@@ -1,4 +1,4 @@
-//! Noise XX hop handshake (IDN-13).
+//! Noise XX hop handshake and host-side link sessions (IDN-13, IDN-14).
 //!
 //! A three-message [Noise XX] exchange whose static keys are checked
 //! against each neighbour's [`IdentityCard`], producing a
@@ -29,9 +29,76 @@
 //! The card's self-signature is verified when the handshake is built,
 //! before any message is exchanged.
 //!
+//! # Host ownership (IDN-14)
+//!
+//! aoMesh's sans-IO engine never holds a card, a handshake or a session
+//! key. The **host** (aoheyra) owns all of them, outside the engine:
+//!
+//! - the neighbour's full [`IdentityCard`], obtained out of band; the
+//!   engine carries only its 8-byte announcement hash in the signed
+//!   `MeshHello` (MSH-07) and a capability bit;
+//! - the in-flight [`HopHandshake`], driven in host code as Control
+//!   frames arrive;
+//! - the finished [`HopTransport`], installed into a [`HopSessions`]
+//!   table kept beside the engine. The engine passes opaque Data frame
+//!   bytes to the host, which calls [`HopSessions::seal_frame`] and
+//!   [`HopSessions::open_frame`].
+//!
+//! Nothing is global or persisted: every piece of state is passed in
+//! and drops when the host drops it. Closing a link marks its session
+//! closed, so a late frame fails with a typed error rather than being
+//! opened under a stale key.
+//!
+//! # Control and Data frame contract (IDN-14)
+//!
+//! Capability negotiation and aoMesh's own frame header live in aoMesh
+//! (MSH-26); aoIdents owns the bytes inside the frames:
+//!
+//! ```text
+//! Control body:  offset 0  1 byte   kind = 0x01 (Noise XX v1 handshake)
+//!                offset 1  ..       Noise XX message (32, 96, 64 bytes, in order)
+//! Data body:     raw HopTransport ciphertext; plaintext length + 16-byte tag
+//! ```
+//!
+//! The kind byte lets a Control frame be demultiplexed before crypto;
+//! the message index is deliberately not carried because the Noise
+//! state machine already rejects out-of-order messages and an index
+//! would be an unauthenticated field the peer could flip. Data frames
+//! carry no aoIdents header: aoMesh decides which opaque bytes to
+//! protect. A different Noise suite needs a new kind byte, an ADR and
+//! a version bump; no signature domain is involved here.
+//!
+//! # Capability and cleartext fallback (IDN-14)
+//!
+//! - Both ends advertise the hop-encryption cap: run the three-message
+//!   handshake over Control frames, verify the pinned card, then seal
+//!   Data frames. A failed handshake never falls back silently: no
+//!   session is installed and the host receives a typed error.
+//! - Neither advertises it, or only one does: no handshake is run and
+//!   Data frames stay in cleartext. End-to-end sealed content remains
+//!   protected by aoIdents; link headers do not.
+//!
+//! The `MeshHello` carrying the cap is signed (MSH-07), so a third
+//! party cannot strip it. A peer that genuinely lacks support can
+//! still choose cleartext; that is an explicit limit, not a downgrade
+//! of a peer that asked for encryption.
+//!
+//! # RNG seam (IDN-14)
+//!
+//! snow expects the `rand_core` 0.6 `RngCore`; aoMesh injects a 0.9
+//! generator. Two options were considered: depend on both trait lines
+//! and add a second blanket implementation, or inject a one-method
+//! [`EntropySource`] implemented for this crate's existing 0.6
+//! `RngCore` and for [`RngAdapter`], a closure newtype. The adapter is
+//! chosen: 0.9's `fill_bytes(&mut [u8])` has the same shape, so a
+//! closure bridges it with no second runtime dependency, no global
+//! RNG and no I/O. Randomness remains an input, so seeded runs are
+//! byte-identical.
+//!
 //! [Noise XX]: https://noiseprotocol.org/noise.html#the-xx-pattern
 
 use core::fmt;
+use std::collections::HashMap;
 
 use rand_core::RngCore;
 use snow::{
@@ -41,7 +108,7 @@ use snow::{
     types::{Cipher, Dh, Hash, Random},
 };
 
-use crate::types::IdentError;
+use crate::types::{IdentError, NodeId};
 use crate::{Identity, IdentityCard};
 
 /// The Noise suite: XX handshake over X25519 with ChaCha20-Poly1305
@@ -62,6 +129,81 @@ const MAX_NOISE_MSG: usize = 65535;
 
 /// ChaCha20-Poly1305 tag appended to every sealed transport frame.
 const TAG_LEN: usize = 16;
+
+/// Host-side cap on simultaneous link sessions (IDN-14): twice aoMesh's
+/// default neighbour table of 32, leaving room for in-flight rekeys
+/// while keeping host memory bounded. A full table is a typed error,
+/// never an eviction of a live session.
+pub const MAX_HOP_SESSIONS: usize = 64;
+
+/// The one randomness operation the handshake needs (IDN-14).
+///
+/// Its signature is the `fill_bytes(&mut [u8])` method shared by
+/// `rand_core` 0.6 and 0.9. There is a blanket implementation for the
+/// crate's 0.6 [`RngCore`], so existing callers keep working;
+/// [`RngAdapter`] bridges a generator from another trait line through
+/// a closure. No global RNG or I/O is involved.
+pub trait EntropySource {
+    /// Fill `dest` with fresh bytes, with the same semantics as
+    /// [`RngCore::fill_bytes`].
+    fn fill_bytes(&mut self, dest: &mut [u8]);
+}
+
+impl<R: RngCore + ?Sized> EntropySource for R {
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        RngCore::fill_bytes(self, dest);
+    }
+}
+
+/// Bridge an injected generator that does not implement this crate's
+/// `rand_core` 0.6 bound (IDN-14).
+///
+/// aoMesh's RNG is on `rand_core` 0.9: the host passes a closure that
+/// calls its `fill_bytes`, and the closure becomes an [`EntropySource`]
+/// without a second runtime dependency in this crate:
+///
+/// ```
+/// use ao_idents::{HopHandshake, Identity, RngAdapter};
+/// # use rand_core::{RngCore, CryptoRng};
+/// # struct HostRng(u64);
+/// # impl CryptoRng for HostRng {}
+/// # impl RngCore for HostRng {
+/// #     fn next_u32(&mut self) -> u32 { self.next_u64() as u32 }
+/// #     fn next_u64(&mut self) -> u64 { self.0 += 1; self.0 }
+/// #     fn fill_bytes(&mut self, dest: &mut [u8]) {
+/// #         for chunk in dest.chunks_mut(8) {
+/// #             let bytes = self.next_u64().to_le_bytes();
+/// #             chunk.copy_from_slice(&bytes[..chunk.len()]);
+/// #         }
+/// #     }
+/// #     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+/// #         self.fill_bytes(dest); Ok(())
+/// #     }
+/// # }
+/// # let local = Identity::from_seed([1; 32]);
+/// # let remote = Identity::from_seed([2; 32]);
+/// # let card = remote.card(b"remote", 1_700_000_000).unwrap();
+/// let mut host_rng = HostRng(7);
+/// let mut bridge = RngAdapter::new(|dest: &mut [u8]| host_rng.fill_bytes(dest));
+/// let _handshake = HopHandshake::initiator(&local, &card, &mut bridge);
+/// ```
+pub struct RngAdapter<F> {
+    fill: F,
+}
+
+impl<F> RngAdapter<F> {
+    /// Wrap a closure that fills a caller-provided buffer.
+    #[must_use]
+    pub const fn new(fill: F) -> Self {
+        Self { fill }
+    }
+}
+
+impl<F: FnMut(&mut [u8])> EntropySource for RngAdapter<F> {
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        (self.fill)(dest);
+    }
+}
 
 /// A Noise XX handshake in progress (IDN-13).
 ///
@@ -103,45 +245,82 @@ impl fmt::Debug for HopTransport {
 
 impl HopHandshake {
     /// Start a handshake as the side that writes the first message,
-    /// pinning the neighbour's [`IdentityCard`]. `remote_card` is the
-    /// card obtained out of band (QR, NFC): its self-signature is
-    /// verified here and its `agreement_pk` must be the key the
-    /// finished handshake proves.
+    /// pinning the neighbour's full [`IdentityCard`]. The card is
+    /// obtained out of band (QR, NFC): its self-signature is verified
+    /// here and its `agreement_pk` must be the key the finished
+    /// handshake proves.
     ///
-    /// `rng` supplies the ephemeral key; this crate never reads an
-    /// OS entropy source itself.
-    pub fn initiator<R: RngCore + ?Sized>(
+    /// `entropy` supplies the ephemeral key; this crate never reads an
+    /// OS entropy source itself. The existing `rand_core` 0.6 callers
+    /// keep working through [`EntropySource`]'s blanket
+    /// implementation; [`RngAdapter`] bridges another trait line.
+    pub fn initiator<S: EntropySource + ?Sized>(
         local: &Identity,
         remote_card: &IdentityCard,
-        rng: &mut R,
+        entropy: &mut S,
     ) -> Result<Self, IdentError> {
-        Self::build(local, remote_card, rng, true)
+        Self::build(local, remote_card, None, entropy, true)
     }
 
     /// Start a handshake as the side that reads the first message,
-    /// pinning the neighbour's [`IdentityCard`]. See
-    /// [`Self::initiator`] for the card and RNG semantics.
-    pub fn responder<R: RngCore + ?Sized>(
+    /// pinning the neighbour's full [`IdentityCard`]. See
+    /// [`Self::initiator`] for the card and entropy semantics.
+    pub fn responder<S: EntropySource + ?Sized>(
         local: &Identity,
         remote_card: &IdentityCard,
-        rng: &mut R,
+        entropy: &mut S,
     ) -> Result<Self, IdentError> {
-        Self::build(local, remote_card, rng, false)
+        Self::build(local, remote_card, None, entropy, false)
     }
 
-    fn build<R: RngCore + ?Sized>(
+    /// Start as initiator when aoMesh knows only the neighbour's
+    /// 8-byte card announcement hash (IDN-14). `remote_card` is the
+    /// full card the host supplies out of band; both its self-signature
+    /// and its [`IdentityCard::announcement_hash`] must match the
+    /// pinned hash, or the handshake is refused before any bytes are
+    /// exchanged ([`IdentError::CardHashMismatch`]).
+    ///
+    /// This is the path for hosts that carry a short hash in the
+    /// signed `MeshHello` (MSH-07) and hold the card themselves; the
+    /// full-card [`Self::initiator`] API remains available.
+    pub fn initiator_pinned_by_hash<S: EntropySource + ?Sized>(
+        local: &Identity,
+        expected_card_hash: &[u8; 8],
+        remote_card: &IdentityCard,
+        entropy: &mut S,
+    ) -> Result<Self, IdentError> {
+        Self::build(local, remote_card, Some(expected_card_hash), entropy, true)
+    }
+
+    /// Start as responder with the card-hash pin (IDN-14). See
+    /// [`Self::initiator_pinned_by_hash`] for the verification rules.
+    pub fn responder_pinned_by_hash<S: EntropySource + ?Sized>(
+        local: &Identity,
+        expected_card_hash: &[u8; 8],
+        remote_card: &IdentityCard,
+        entropy: &mut S,
+    ) -> Result<Self, IdentError> {
+        Self::build(local, remote_card, Some(expected_card_hash), entropy, false)
+    }
+
+    fn build<S: EntropySource + ?Sized>(
         local: &Identity,
         remote_card: &IdentityCard,
-        rng: &mut R,
+        expected_hash: Option<&[u8; 8]>,
+        entropy: &mut S,
         initiator: bool,
     ) -> Result<Self, IdentError> {
-        // A forged or corrupted card fails before any handshake work.
-        remote_card.verify()?;
+        // A forged card, or a card that is not the one the host pinned,
+        // fails before any handshake work.
+        match expected_hash {
+            Some(hash) => remote_card.verify_pinned_by_hash(hash)?,
+            None => remote_card.verify()?,
+        }
         // snow's resolver must be `'static`, so a borrowed caller RNG
         // cannot be handed over: draw the ephemeral key's bytes here
         // and give snow a buffer-backed RNG instead.
         let mut drawn = [0_u8; EPHEMERAL_LEN];
-        rng.fill_bytes(&mut drawn);
+        entropy.fill_bytes(&mut drawn);
         let params: NoiseParams = SUITE
             .parse::<NoiseParams>()
             .map_err(|err| IdentError::HandshakeFailed(err.to_string()))?;
@@ -254,6 +433,158 @@ impl HopTransport {
             .map_err(map_transport_error)?;
         buf.truncate(len);
         Ok(buf)
+    }
+}
+
+/// Host-owned, bounded table of per-link hop sessions (IDN-14).
+///
+/// The host (aoheyra) creates this and keeps it **outside** aoMesh's
+/// sans-IO engine: the engine only passes neighbour ids and opaque
+/// frame bytes. Installing a transport after a successful handshake
+/// makes that link encrypted; closing it on link-down makes later
+/// frames fail as [`IdentError::HopSessionClosed`] instead of being
+/// opened under stale keys. Keys never appear in [`fmt::Debug`].
+///
+/// There is no global state and no persistence: dropping the table
+/// drops every session key with it.
+pub struct HopSessions {
+    entries: HashMap<NodeId, HopSessionEntry>,
+}
+
+enum HopSessionEntry {
+    Open(HopTransport),
+    Closed,
+}
+
+impl HopSessionEntry {
+    fn state(&self) -> &'static str {
+        match self {
+            Self::Open(_) => "open",
+            Self::Closed => "closed",
+        }
+    }
+}
+
+impl fmt::Debug for HopSessions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Public neighbour ids and state only: the transports hold
+        // session keys and must never be printed.
+        let links: Vec<_> = self
+            .entries
+            .iter()
+            .map(|(peer, entry)| (peer, entry.state()))
+            .collect();
+        f.debug_struct("HopSessions")
+            .field("links", &links)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Default for HopSessions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HopSessions {
+    /// Create an empty session table. Bounded to [`MAX_HOP_SESSIONS`]
+    /// entries; no allocation happens until the first install.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+        }
+    }
+
+    /// Install (or replace, on rekey) the transport for `peer`.
+    ///
+    /// # Errors
+    ///
+    /// [`IdentError::HopSessionTableFull`] if the table already holds
+    /// [`MAX_HOP_SESSIONS`] links and this peer has no entry. Live
+    /// sessions are never evicted to make room.
+    pub fn install(&mut self, peer: NodeId, transport: HopTransport) -> Result<(), IdentError> {
+        if !self.entries.contains_key(&peer) && self.entries.len() >= MAX_HOP_SESSIONS {
+            return Err(IdentError::HopSessionTableFull);
+        }
+        self.entries.insert(peer, HopSessionEntry::Open(transport));
+        Ok(())
+    }
+
+    /// Mark a link's session closed, dropping its transport keys. A
+    /// closed entry stays in the table so late frames are reported as
+    /// [`IdentError::HopSessionClosed`], distinct from links that were
+    /// never encrypted ([`IdentError::NoHopSession`]).
+    ///
+    /// Idempotent for an already closed link. Closing a link with no
+    /// session is [`IdentError::NoHopSession`].
+    pub fn close(&mut self, peer: NodeId) -> Result<(), IdentError> {
+        match self.entries.get_mut(&peer) {
+            Some(entry @ HopSessionEntry::Open(_)) => {
+                *entry = HopSessionEntry::Closed;
+                Ok(())
+            }
+            Some(HopSessionEntry::Closed) => Ok(()),
+            None => Err(IdentError::NoHopSession(peer)),
+        }
+    }
+
+    /// Remove a closed entry (or any entry) and free its slot. The
+    /// host calls this when a link is gone for good; returns whether
+    /// an entry was present.
+    pub fn forget(&mut self, peer: NodeId) -> bool {
+        self.entries.remove(&peer).is_some()
+    }
+
+    /// Number of entries, open and closed, currently held.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// True when no entries are held.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Seal an opaque Data frame for `peer`. The plaintext is whatever
+    /// bytes aoMesh hands to the host; the result is the raw
+    /// [`HopTransport`] ciphertext carried in the Data frame body.
+    ///
+    /// # Errors
+    ///
+    /// - [`IdentError::NoHopSession`] when the link has no session;
+    /// - [`IdentError::HopSessionClosed`] after link-down;
+    /// - [`IdentError::PayloadTooLarge`] over the Noise message limit.
+    pub fn seal_frame(&mut self, peer: NodeId, plaintext: &[u8]) -> Result<Vec<u8>, IdentError> {
+        match self.entries.get_mut(&peer) {
+            Some(HopSessionEntry::Open(transport)) => transport.encrypt_msg(plaintext),
+            Some(HopSessionEntry::Closed) => Err(IdentError::HopSessionClosed(peer)),
+            None => Err(IdentError::NoHopSession(peer)),
+        }
+    }
+
+    /// Open an opaque Data frame from `peer`.
+    ///
+    /// # Errors
+    ///
+    /// - [`IdentError::NoHopSession`] or [`IdentError::HopSessionClosed`]
+    ///   as for [`Self::seal_frame`];
+    /// - [`IdentError::HopFrameInvalid`] for a malformed, tampered or
+    ///   foreign frame (including a replay or the wrong direction);
+    /// - [`IdentError::PayloadTooLarge`] over the Noise message limit.
+    pub fn open_frame(&mut self, peer: NodeId, frame: &[u8]) -> Result<Vec<u8>, IdentError> {
+        match self.entries.get_mut(&peer) {
+            Some(HopSessionEntry::Open(transport)) => {
+                transport.decrypt_msg(frame).map_err(|err| match err {
+                    IdentError::OpenFailed => IdentError::HopFrameInvalid,
+                    other => other,
+                })
+            }
+            Some(HopSessionEntry::Closed) => Err(IdentError::HopSessionClosed(peer)),
+            None => Err(IdentError::NoHopSession(peer)),
+        }
     }
 }
 

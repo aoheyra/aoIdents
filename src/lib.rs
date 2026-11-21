@@ -53,7 +53,9 @@ pub use group::{
     GroupId, GroupMessage, GroupReceiver, MAX_COUNTER_JUMP, MAX_SENDERS_PER_GROUP,
     MembershipAction, MembershipChange, SenderChain, SenderKeyDistribution,
 };
-pub use handshake::{HopHandshake, HopTransport};
+pub use handshake::{
+    EntropySource, HopHandshake, HopSessions, HopTransport, MAX_HOP_SESSIONS, RngAdapter,
+};
 pub use identity::{Identity, compute_node_id};
 pub use keystore::{
     KeyStore, MAX_BLOB_BYTES, MAX_ENTRIES, MAX_KEY_ID_BYTES, MemoryKeyStore, SealedBlob,

@@ -39,6 +39,7 @@ aoMesh treats `NodeId` as an opaque type and calls aoIdents for signing, sealing
 | **Replay guard** | Per-sender sliding window at the final recipient; serializable | IDN-14 |
 | **Backup** | Seed export as Argon2id passphrase-encrypted blob; import verifies `NodeId` | IDN-06 |
 | **Hop handshake** | Sans-IO Noise XX state machine authenticating neighbours against their `IdentityCard` | IDN-13 |
+| **Hop integration seam** | Card-hash pinning of an out-of-band card, an RNG bridge for aoMesh's `rand_core` 0.9, and a bounded host-owned `HopSessions` table for sealing/opening per-link Data frames | IDN-14 |
 | **Key rotation** | Rotation statements signed by the old key and counter-signed by the successor; self-signed revocations; the contact book follows a valid rotation and blocks a revoked key | IDN-16 |
 | **Prekeys and X3DH** | Signed rotating prekey bundles published through announcements; X3DH initial agreement; one-time prekeys deleted on use, so a message survives long-term key compromise after prekey deletion | IDN-15 |
 | **Group keys** | Sender-key chains for channels: each member distributes one sealed chain, messages are a single AEAD under a ratcheting counter, late delivery within a bounded window still opens, membership changes are signed statements, and member removal rotates the chain so the removed member cannot read new messages | IDN-17 |
@@ -97,6 +98,14 @@ alice.public().verify("aoheyra/idn/v1/example", &bytes, &sig)?;
 // public keys (aoMesh's MeshHello, MSH-07):
 let node_id = compute_node_id(signing_pk, agreement_pk); // == Identity::node_id()
 verify_signing_pk(signing_pk, ctx, bytes, &sig)?;         // same rules as PublicIdentity::verify
+
+// Host-side hop encryption (IDN-14): the engine carries only card_hash
+// and opaque bytes; the host holds the card, RNG and session keys.
+let mut hs = HopHandshake::initiator_pinned_by_hash(
+    &local, &neighbour_card_hash, &neighbour_card_from_qr, &mut entropy)?;
+let transport = hs.into_transport()?;                   // after 3 Control frames
+sessions.install(neighbour_node_id, transport)?;         // HopSessions, host-owned
+let ciphertext = sessions.seal_frame(neighbour_node_id, packet_bytes)?;
 ```
 
 `open` fails for tampering with any field, for the wrong recipient, and (with `ReplayGuard`) for replays.
@@ -106,6 +115,7 @@ verify_signing_pk(signing_pk, ctx, bytes, &sig)?;         // same rules as Publi
 - **Pure and sans-IO.** No sockets, files, threads, FFI or global state. Persistence is behind traits (`KeyStore`, `ContactStore`) that aoheyra implements.
 - **Typed errors only.** A changed key for a known `NodeId` is never silently accepted.
 - **Distinct concerns stay distinct:** `ReplayGuard` here is a per-sender acceptance check at the final recipient. aoMesh's seen-cache is forwarding dedupe. Do not merge them.
+- **Host owns hop sessions.** Cards, `HopTransport` keys and the RNG stay in aoheyra, outside aoMesh's engine; the wire contract and cleartext fallback rule are in [docs/host-integration.md](docs/host-integration.md).
 - **Hardening is part of the feature,** not a later pass: known-answer vectors, property tests and audit gating ship with the code (IDN-18).
 
 ## Development

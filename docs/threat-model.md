@@ -1,8 +1,8 @@
 # Threat model
 
 - **Status:** accepted
-- **Date:** 2026-11-08 (revised 2026-11-15 for IDN-16 and IDN-17)
-- **Related:** ADR-0001 (crypto suite); IDN-05 (key storage), IDN-06 (backup), IDN-08 (contacts), IDN-09 (sealed messages), IDN-12 (rotating tags), IDN-13 (hop handshake), IDN-14 (replay guard), IDN-15 (prekeys), IDN-16 (revocation), IDN-17 (group keys); MSH-02 (routing metadata trade-off); NET-18 (link abuse protection)
+- **Date:** 2026-11-08 (revised 2026-11-15 for IDN-16 and IDN-17, 2026-11-21 for IDN-14 host integration)
+- **Related:** ADR-0001 (crypto suite); IDN-05 (key storage), IDN-06 (backup), IDN-08 (contacts), IDN-09 (sealed messages), IDN-12 (rotating tags), IDN-13 (hop handshake), IDN-14 (replay guard and host integration seam), IDN-15 (prekeys), IDN-16 (revocation), IDN-17 (group keys); MSH-02 (routing metadata trade-off), MSH-26 (hop encryption); NET-18 (link abuse protection)
 
 ## Scope and assets
 
@@ -12,6 +12,7 @@ aoIdents owns identity, signatures, sealed messages, contact trust and replay re
 |---|---|---|
 | Message content | Sealed to the recipient; decrypted only on the recipient device | IDN-09 (AEAD), IDN-17 (group AEAD), IDN-04 (signatures) |
 | Identity seed and secret keys | Memory only while in use (zeroized); at rest behind `KeyStore` and the aoheyra vault | IDN-02, IDN-05, AND-13 |
+| Per-link hop session keys | Host-owned `HopSessions` outside aoMesh's engine; dropped on close/rekey | IDN-13, IDN-14, MSH-26 |
 | Sender and recipient metadata | Mesh packet headers and radio traffic | Deliberately visible to relays (MSH-02); rotating tags unlinkable to `NodeId` (IDN-12) |
 | Contact graph | aoheyra's contact store; never written to the mesh in clear text | IDN-08, app storage (APP-04) |
 | Location | App payload, sealed like any other content | IDN-09, APP-07 |
@@ -44,7 +45,7 @@ A neighbour that forwards, drops, delays or analyses traffic it is trusted to re
 
 An attacker who substitutes keys, forges signatures or sits on the first contact.
 
-- Protected: strict signatures with domain separation (IDN-04), the agreement key bound to its identity by signature (IDN-03), self-signed identity cards (IDN-07), link neighbours authenticate each other against their identity cards with the Noise XX hop handshake (IDN-13), and a changed key for a known `NodeId` raising a typed warning instead of being accepted silently (IDN-08).
+- Protected: strict signatures with domain separation (IDN-04), the agreement key bound to its identity by signature (IDN-03), self-signed identity cards (IDN-07), link neighbours authenticate each other against their identity cards with the Noise XX hop handshake (IDN-13) pinned to the card hash the host learned out of band (IDN-14), and a changed key for a known `NodeId` raising a typed warning instead of being accepted silently (IDN-08). A failed pin or handshake installs no session and never silently falls back to cleartext.
 - Not protected: first contact. Trust-on-first-use means an impostor present at first meeting is trusted until the user compares safety numbers out of band (IDN-08).
 
 ### Spammer or Sybil
@@ -67,7 +68,7 @@ Someone with the physical device.
 - **Content integrity and authenticity:** any tampered field fails to open, and the sender's signature is verified before the plaintext is returned (IDN-09, IDN-04).
 - **Replay rejection:** a replayed sealed message is rejected at the recipient while an out-of-order but fresh one is accepted (IDN-14).
 - **Key substitution:** a substituted agreement key fails the bind-agreement check; a changed key for a known `NodeId` is never silently accepted (IDN-03, IDN-08).
-- **Neighbour authentication:** the optional Noise XX hop handshake authenticates a link neighbour against its identity card before its traffic is trusted (IDN-13).
+- **Neighbour authentication:** the optional Noise XX hop handshake authenticates a link neighbour against its identity card before its traffic is trusted (IDN-13). The host pins the card by its 8-byte announcement hash; Data frames are sealed per link by host-owned session keys (IDN-14, MSH-26).
 - **Channel confidentiality and authenticity:** only members open a channel message, membership changes are signed statements, and removing a member rotates the chain so it cannot read new messages (IDN-17).
 - **No secrets in output:** secret types print `<redacted>`, zeroize on drop and compare in constant time (IDN-02).
 
@@ -84,6 +85,7 @@ These limits are deliberate:
 7. **Sybil is bounded, not prevented.** Identities are free to create; per-origin budgets limit each identity's damage, not the number of identities.
 8. **A stolen, unlocked device is game until revocation propagates.** Rotation and revocation notices exist (IDN-16), but the thief controls the device and can delay the notice; contacts stay exposed until they receive and act on it.
 9. **A compromised channel member impersonates the others.** Every member holds the sender chains distributed to it, so it can read channel traffic and forge messages as those senders until they rotate; a removed member keeps everything it already received (IDN-17).
+10. **Cleartext links expose their frames.** Hop encryption is optional and negotiated by signed hello caps (MSH-07, MSH-26). If either peer lacks support, no handshake runs and the Data frames stay cleartext; if both advertise it but the handshake fails, no session is installed and the host is told. Even on an encrypted link, the radio observer still sees timing and frame sizes, and aoMesh decides which bytes are protected.
 
 ## Forward secrecy status per milestone
 
@@ -99,9 +101,9 @@ These limits are deliberate:
 | Layer | Responsible for | Not responsible for |
 |---|---|---|
 | aoNetwork (NET-18) | Per-link rate limits, malformed-frame strikes, link liveness | Content, identity, routing metadata |
-| aoMesh (MSH-02, MSH-10) | Routing headers, per-origin budgets, forwarding dedupe | Content confidentiality, contact trust |
-| aoIdents (this crate) | Sealing, signatures, identity, contacts, replay rejection | Availability, routing, persistence, device security |
-| aoheyra (APP, AND) | Persistence behind the stores, OS integration, keystore, app lock | Cryptographic decisions, which live here |
+| aoMesh (MSH-02, MSH-10, MSH-26) | Routing headers, per-origin budgets, forwarding dedupe, cap negotiation and opaque frame carriage | Keys, handshakes, cryptographic primitives |
+| aoIdents (this crate) | Sealing, signatures, identity, contacts, replay rejection, hop handshake and per-link seal/open | Availability, routing, persistence, device security |
+| aoheyra (APP, AND) | Persistence behind the stores, OS integration, keystore, app lock; holds neighbour cards and the `HopSessions` table outside aoMesh's engine | Cryptographic decisions, which live here |
 
 ## Review
 
