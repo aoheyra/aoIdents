@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
   push:
     branches: [master]
   merge_group:
@@ -11,8 +12,13 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+concurrency:
+  group: aoheyra/aoIdents-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   style:
+    if: github.event.action != 'closed'
     name: Style
     runs-on: ubuntu-latest
     steps:
@@ -26,6 +32,7 @@ jobs:
         run: cargo fmt --all -- --check
 
   clippy:
+    if: github.event.action != 'closed'
     name: Clippy
     runs-on: ubuntu-latest
     steps:
@@ -39,6 +46,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
   docs:
+    if: github.event.action != 'closed'
     name: Docs
     runs-on: ubuntu-latest
     steps:
@@ -52,6 +60,7 @@ jobs:
           RUSTDOCFLAGS: -D warnings
 
   tests:
+    if: github.event.action != 'closed'
     name: Tests
     strategy:
       fail-fast: false
@@ -69,6 +78,7 @@ jobs:
         run: cargo test --all-features
 
   msrv:
+    if: github.event.action != 'closed'
     name: MSRV
     runs-on: ubuntu-latest
     steps:
@@ -82,6 +92,7 @@ jobs:
         run: cargo build --all-features
 
   deny:
+    if: github.event.action != 'closed'
     name: cargo-deny
     runs-on: ubuntu-latest
     steps:
@@ -93,6 +104,7 @@ jobs:
           command: check
 
   audit:
+    if: github.event.action != 'closed'
     name: cargo-audit
     runs-on: ubuntu-latest
     steps:
@@ -112,6 +124,7 @@ jobs:
         run: cargo audit
 
   package:
+    if: github.event.action != 'closed'
     name: Package
     runs-on: ubuntu-latest
     steps:
