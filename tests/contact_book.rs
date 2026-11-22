@@ -350,3 +350,53 @@ mod proptests {
         }
     }
 }
+
+/// External stores can restore a contact from previously verified fields.
+/// The constructor still binds the id to the keys, so a tampered row
+/// cannot bind a petname or trust level to a different identity.
+#[test]
+fn contacts_restore_from_verified_parts_with_typed_rejections() {
+    let alice = identity(5);
+    let restored = Contact::from_parts(
+        alice.node_id(),
+        *alice.public().signing_pk(),
+        *alice.public().agreement_pk(),
+        Some("Alice".to_owned()),
+        Trust::Verified,
+        123,
+    )
+    .expect("verified fields restore");
+
+    assert_eq!(restored.node_id(), &alice.node_id());
+    assert_eq!(restored.signing_pk(), alice.public().signing_pk());
+    assert_eq!(restored.agreement_pk(), alice.public().agreement_pk());
+    assert_eq!(restored.petname(), Some("Alice"));
+    assert_eq!(restored.trust(), Trust::Verified);
+    assert_eq!(restored.first_seen(), 123);
+
+    let mallory = identity(6);
+    assert!(matches!(
+        Contact::from_parts(
+            alice.node_id(),
+            *mallory.public().signing_pk(),
+            *mallory.public().agreement_pk(),
+            None,
+            Trust::Unverified,
+            1,
+        ),
+        Err(IdentError::KeyChanged(id)) if id == alice.node_id()
+    ));
+
+    let overlong = "a".repeat(MAX_PETNAME_BYTES + 1);
+    assert!(matches!(
+        Contact::from_parts(
+            alice.node_id(),
+            *alice.public().signing_pk(),
+            *alice.public().agreement_pk(),
+            Some(overlong),
+            Trust::Unverified,
+            1,
+        ),
+        Err(IdentError::PetnameTooLong)
+    ));
+}

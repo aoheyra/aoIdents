@@ -90,6 +90,48 @@ impl Contact {
         })
     }
 
+    /// Rebuild a contact from previously verified, persisted fields.
+    ///
+    /// This seam exists for external `ContactStore` implementations such as
+    /// aoheyra's SQLite store: `Contact::from_card` needs the full signed card,
+    /// but a trust or petname update carries only the fields this struct owns.
+    /// The caller must pass key material that was verified when first observed;
+    /// this constructor only enforces the invariant it can check without a
+    /// card, namely that `node_id` hashes to the two public keys. A mismatch is
+    /// [`IdentError::KeyChanged`], so a tampered row cannot bind a trust level
+    /// to a different identity.
+    ///
+    /// # Errors
+    ///
+    /// [`IdentError::KeyChanged`] if the id does not match the keys, or
+    /// [`IdentError::PetnameTooLong`] beyond [`MAX_PETNAME_BYTES`].
+    pub fn from_parts(
+        node_id: NodeId,
+        signing_pk: [u8; 32],
+        agreement_pk: [u8; 32],
+        petname: Option<String>,
+        trust: Trust,
+        first_seen: u64,
+    ) -> Result<Self, IdentError> {
+        if compute_node_id(&signing_pk, &agreement_pk) != node_id {
+            return Err(IdentError::KeyChanged(node_id));
+        }
+        if petname
+            .as_ref()
+            .is_some_and(|name| name.len() > MAX_PETNAME_BYTES)
+        {
+            return Err(IdentError::PetnameTooLong);
+        }
+        Ok(Self {
+            node_id,
+            signing_pk,
+            agreement_pk,
+            petname,
+            trust,
+            first_seen,
+        })
+    }
+
     /// The contact's [`NodeId`].
     #[must_use]
     pub fn node_id(&self) -> &NodeId {

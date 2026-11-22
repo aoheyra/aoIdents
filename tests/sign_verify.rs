@@ -109,7 +109,12 @@ fn known_answer_signature_vector() {
 
 /// `hex` for the known-answer vectors above.
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(out, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    out
 }
 
 // --- Context separation (the done-when) ----------------------------------
